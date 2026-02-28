@@ -88,6 +88,7 @@ export default function App() {
   const [detailSheet, setDetailSheet] = useState(null) // { workout, detail } | null
   const [expandedExGroups, setExpandedExGroups] = useState(new Set())
   const [exFilterChip, setExFilterChip] = useState('')
+  const [showTemplateSheet, setShowTemplateSheet] = useState(false)
 
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
   const EQUIPMENT = ['Bodyweight', 'Barbell', 'Dumbbell', 'Machine', 'Cable', 'Kettlebell', 'Trap Bar', 'EZ Bar', 'TRX', 'Other']
@@ -175,6 +176,27 @@ export default function App() {
   }
   async function handleStartEmptyWorkout() {
     await handleStartNewWorkout(`Workout ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
+  }
+
+  async function handleStartFromTemplate(templateWorkout) {
+    setShowTemplateSheet(false)
+    const detail = await getWorkoutDetail(templateWorkout.id)
+    // Collect unique exercise IDs in the order they first appeared
+    const seen = new Set()
+    const orderedExIds = []
+    for (const s of detail.sets) {
+      if (!seen.has(s.exercise_id)) { seen.add(s.exercise_id); orderedExIds.push(s.exercise_id) }
+    }
+    const w = await createWorkout({ name: templateWorkout.name, profile_id: activeProfile?.id })
+    const started = await startWorkout(w.id)
+    const sets = []
+    for (const exId of orderedExIds) {
+      const s = await addSet(started.id, { exercise_id: exId, reps: null, weight: null })
+      sets.push(s)
+    }
+    setSessionWorkout(started)
+    setTimerStart(utcMs(started.start_time))
+    setSessionSets(sets)
   }
   async function handleStartWorkout(id) {
     const w = await startWorkout(id)
@@ -387,6 +409,12 @@ export default function App() {
             )}
 
             <button className="primary start-btn" onClick={handleStartEmptyWorkout}>Start New Workout</button>
+            {workouts.some(w => w.status === 'finished') && (
+              <button onClick={() => setShowTemplateSheet(true)}
+                style={{ width: '100%', padding: '14px', borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Use template
+              </button>
+            )}
 
             {(() => {
               const todayRestDay = workouts.find(w => w.is_rest_day && dateKey(parseDate(w.date)) === todayKey)
@@ -887,6 +915,35 @@ export default function App() {
           <span className="tab-label">Progress</span>
         </button>
       </nav>
+
+      {showTemplateSheet && (
+        <BottomSheet onClose={() => setShowTemplateSheet(false)} maxHeight="80vh"
+          dragZoneContent={
+            <div style={{ padding: '10px 18px 6px' }}>
+              <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Start from template</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>Pick a past workout to pre-load its exercises</div>
+            </div>
+          }>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 40px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[...workouts]
+              .filter(w => w.status === 'finished')
+              .sort((a, b) => new Date(b.date) - new Date(a.date))
+              .slice(0, 15)
+              .map(w => {
+                return (
+                  <button key={w.id} type="button" onClick={() => handleStartFromTemplate(w)}
+                    style={{ width: '100%', textAlign: 'left', padding: '14px 16px', borderRadius: 12, background: 'var(--bg-secondary)', border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.97rem', marginBottom: 3 }}>{w.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      {fmtDate(w.date, { weekday: 'short', month: 'short', day: 'numeric' })} &middot; {w.unique_exercises_count ?? 0} ex &middot; {w.set_count ?? 0} sets
+                    </div>
+                  </button>
+                )
+              })
+            }
+          </div>
+        </BottomSheet>
+      )}
 
       {detailSheet && (
         <WorkoutDetailSheet
