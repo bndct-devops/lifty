@@ -2092,8 +2092,15 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
       const dispW = nextPrev.weight != null ? (unit === 'lbs' ? Math.round(nextPrev.weight * 2.20462 * 10) / 10 : nextPrev.weight) : ''
       setWeight(dispW !== '' ? String(dispW) : '')
       setReps(nextPrev.reps != null ? String(nextPrev.reps) : '')
+    } else {
+      // No history for this set number — refill from the set just logged so the button stays enabled
+      const lastLogged = (setsByExercise[selectedExId] || []).at(-1)
+      if (lastLogged) {
+        const dispW = lastLogged.weight != null ? (unit === 'lbs' ? Math.round(lastLogged.weight * 2.20462 * 10) / 10 : lastLogged.weight) : ''
+        setWeight(dispW !== '' ? String(dispW) : '')
+        setReps(lastLogged.reps != null ? String(lastLogged.reps) : '')
+      }
     }
-    // if no last-time data for this set number, keep current values (same weight, ready to repeat)
   }, [_activeSessionCount])
 
   async function handleLogSet(e) {
