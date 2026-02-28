@@ -123,7 +123,7 @@ class SetOut(BaseModel):
     reps: Optional[int]
     weight: Optional[float]
     timestamp: datetime
-    order: int
+    order: Optional[int] = None
 
     class Config:
         orm_mode = True

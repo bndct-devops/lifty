@@ -38,6 +38,8 @@ def on_startup():
             "ALTER TABLE profile ADD COLUMN ding_enabled INTEGER NOT NULL DEFAULT 1",
             "ALTER TABLE profile ADD COLUMN overload_hints INTEGER NOT NULL DEFAULT 1",
             "ALTER TABLE profile ADD COLUMN plate_calculator INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE setentry ADD COLUMN timestamp DATETIME",
+            "ALTER TABLE setentry ADD COLUMN \"order\" INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 session.exec(text(ddl))
@@ -549,7 +551,7 @@ def get_exercise_last_sets(exercise_id: int, profile_id: Optional[int] = Query(d
         sets = session.exec(
             select(SetEntry)
             .where(SetEntry.workout_id == w.id, SetEntry.exercise_id == exercise_id)
-            .order_by(SetEntry.order)
+            .order_by(SetEntry.id)
         ).all()
     REQUEST_COUNTER.labels(method="GET", endpoint="/api/exercises/{id}/last_sets", status="200").inc()
     return sets
@@ -694,7 +696,7 @@ def add_set(workout_id: int, set_entry: schemas.SetCreate):
         if not w:
             return Response(status_code=404)
         s = SetEntry(workout_id=workout_id, exercise_id=set_entry.exercise_id,
-                     reps=set_entry.reps, weight=set_entry.weight, order=set_entry.order)
+                     reps=set_entry.reps, weight=set_entry.weight)
         session.add(s)
         session.commit()
         session.refresh(s)
