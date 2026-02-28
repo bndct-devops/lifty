@@ -1049,6 +1049,11 @@ export default function App() {
           exercises={exercises}
           unit={activeProfile.unit}
           onClose={() => setDetailSheet(null)}
+          onDelete={async (id) => {
+            await deleteWorkout(id)
+            setWorkouts(ws => ws.filter(w => w.id !== id))
+            setDetailSheet(null)
+          }}
         />
       )}
 
@@ -1070,7 +1075,7 @@ export default function App() {
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
           }>
-            {/* Scrollable body */
+            {/* Scrollable body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {/* Rename */}
               <div className="card" style={{ margin: 0 }}>
@@ -1521,9 +1526,10 @@ function MiniMarkdown({ text }) {
   return <div style={{ fontSize: '0.88rem', color: 'var(--text)', lineHeight: 1.5 }}>{elements}</div>
 }
 
-function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
+function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose, onDelete }) {
   const COLORS = ['#e06c75','#61afef','#98c379','#c678dd','#e5c07b','#56b6c2','#ff9580','#bd93f9','#abb2bf']
   const BODY_PART_ORDER = ['Chest','Back','Legs','Shoulders','Arms','Core','Full Body','Cardio','Other']
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
 
   function e1rm(weight, reps) {
     if (!weight || !reps || reps <= 0) return null
@@ -1659,6 +1665,25 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
               </div>
             )
           })}
+        </div>
+
+        {/* Delete workout */}
+        <div style={{ padding: '8px 18px 32px', borderTop: '1px solid var(--border)' }}>
+          {confirmDelete ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Delete this workout?</span>
+              <button onClick={() => setConfirmDelete(false)}
+                style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', color: 'var(--text)', fontFamily: 'inherit' }}>Cancel</button>
+              <button onClick={() => onDelete && onDelete(workout.id)}
+                style={{ background: '#e53e3e', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: '#fff', fontFamily: 'inherit' }}>Delete</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)}
+              style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
+              <Trash2 size={14} />
+              Delete workout
+            </button>
+          )}
         </div>
     </BottomSheet>
   )
