@@ -271,7 +271,7 @@ export default function App() {
   // Home screen derived data
   const todayKey = dateKey(new Date())
   const _wday = new Date().getDay() // 0=Sun,1=Mon,...
-  const _weekOff = (activeProfile.week_start || 'monday') === 'monday' ? (_wday + 6) % 7 : _wday
+  const _weekOff = (activeProfile?.week_start || 'monday') === 'monday' ? (_wday + 6) % 7 : _wday
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - _weekOff); weekStart.setHours(0, 0, 0, 0)
   const thisWeekWorkouts = workouts.filter(w => w.status === 'finished' && parseDate(w.date) >= weekStart)
   const thisWeekSets = thisWeekWorkouts.reduce((s, w) => s + (w.set_count || 0), 0)
