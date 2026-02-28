@@ -97,7 +97,7 @@ section{display:flex;flex-direction:column;gap:14px}
 
 label{display:block;color:var(--muted);font-size:0.85rem;margin-bottom:10px;font-weight:500}
 
-input,select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;background:var(--bg-secondary);color:var(--text);font-size:1rem;font-family:inherit}
+input,select,textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;background:var(--bg-secondary);color:var(--text);font-size:16px;font-family:inherit}
 input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(96,165,250,0.1)}
 select{cursor:pointer}
 
