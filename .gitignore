@@ -1,0 +1,61 @@
+# ── Python ───────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.coverage
+coverage.xml
+htmlcov/
+venv/
+.venv/
+env/
+pip-wheel-metadata/
+
+# ── Node / frontend ───────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+.npm
+
+# ── Database / data files ─────────────────────────
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Docker / local dev ───────────────────────────
+docker-compose.override.yml
+
+# ── macOS ─────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Editor / IDE ──────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Secrets / env ─────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert

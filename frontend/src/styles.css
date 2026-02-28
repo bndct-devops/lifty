@@ -1,0 +1,151 @@
+:root[data-theme='dark']{
+  --bg: #0f1724;
+  --bg-secondary: #1a2438;
+  --card: #0b1220;
+  --muted: #9aa4b2;
+  --text-muted: #9aa4b2;
+  --accent: #60a5fa;
+  --text: #e6eef6;
+  --border: rgba(255,255,255,0.08);
+}
+
+:root[data-theme='light']{
+  --bg: #f9fafb;
+  --bg-secondary: #f3f4f6;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --text-muted: #6b7280;
+  --accent: #3b82f6;
+  --text: #1f2937;
+  --border: rgba(0,0,0,0.08);
+}
+
+/* ── Catppuccin themes ── */
+:root[data-theme='catppuccin-mocha']{
+  --bg: #1e1e2e;
+  --bg-secondary: #313244;
+  --card: #181825;
+  --muted: #6c7086;
+  --text-muted: #585b70;
+  --accent: #cba6f7;
+  --text: #cdd6f4;
+  --border: rgba(205,214,244,0.07);
+}
+
+:root[data-theme='catppuccin-macchiato']{
+  --bg: #24273a;
+  --bg-secondary: #363a4f;
+  --card: #1e2030;
+  --muted: #6e738d;
+  --text-muted: #5b6078;
+  --accent: #c6a0f6;
+  --text: #cad3f5;
+  --border: rgba(202,211,245,0.07);
+}
+
+:root[data-theme='catppuccin-frappe']{
+  --bg: #303446;
+  --bg-secondary: #414559;
+  --card: #292c3c;
+  --muted: #737994;
+  --text-muted: #626880;
+  --accent: #ca9ee6;
+  --text: #c6d0f5;
+  --border: rgba(198,208,245,0.07);
+}
+
+:root[data-theme='catppuccin-latte']{
+  --bg: #eff1f5;
+  --bg-secondary: #e6e9ef;
+  --card: #ffffff;
+  --muted: #9ca0b0;
+  --text-muted: #7c7f93;
+  --accent: #8839ef;
+  --text: #4c4f69;
+  --border: rgba(76,79,105,0.1);
+}
+
+:root{
+  color-scheme: dark light;
+}
+
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif; margin:0; background:var(--bg); color:var(--text); min-height:100vh; transition:background 0.3s, color 0.3s}
+.app{max-width:480px;margin:0 auto;padding:16px 16px calc(90px + env(safe-area-inset-bottom))}
+
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-top:4px}
+.top h1{margin:0;font-size:1.6rem;font-weight:800;letter-spacing:-0.5px}
+.theme-toggle{background:var(--card);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:1rem}
+.theme-toggle:hover{background:var(--bg-secondary)}
+
+/* Bottom nav */
+.tabs{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{flex:1;padding:10px 4px 8px;border:none;border-top:2px solid transparent;background:transparent;color:var(--text);opacity:0.4;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:color 0.15s, border-color 0.15s, opacity 0.15s;min-width:0}
+.tabs button.active{color:var(--accent);border-top-color:var(--accent);opacity:1}
+.tab-icon{font-size:1.2rem;line-height:1}
+.tab-label{font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap}
+
+.content{padding:4px 0}
+section{display:flex;flex-direction:column;gap:14px}
+
+.card{background:var(--card);border:1px solid var(--border);padding:18px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+
+/* Section headings (replace mis-used <label> as headings) */
+.section-heading{font-size:0.88rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:0 0 12px}
+
+.group-label{font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);margin-bottom:6px;padding:2px 0}
+
+label{display:block;color:var(--muted);font-size:0.85rem;margin-bottom:10px;font-weight:500}
+
+input,select{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:12px;background:var(--bg-secondary);color:var(--text);font-size:1rem;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(96,165,250,0.1)}
+select{cursor:pointer}
+
+.row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+button{cursor:pointer;transition:all 0.2s;font-family:inherit}
+.primary{background:var(--accent);color:#fff;border:0;padding:10px 16px;border-radius:8px;font-weight:600;font-size:0.95rem}
+.primary:hover{filter:brightness(1.1)}
+.primary:disabled{opacity:0.4;cursor:not-allowed}
+button:not(.primary):not(.start-btn){background:transparent;border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:8px;font-weight:500}
+button:not(.primary):not(.start-btn):hover{background:var(--bg-secondary)}
+
+.start-btn{display:block;width:100%;padding:18px;font-size:1.1rem;font-weight:700;border-radius:12px;border:0;background:var(--accent);color:#fff;cursor:pointer;text-align:center;transition:filter 0.2s}
+.start-btn:hover{filter:brightness(1.08)}
+
+/* Stat boxes on home screen */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat-box{display:flex;flex-direction:column;align-items:center;padding:14px 8px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border)}
+.stat-num{font-size:2rem;font-weight:800;line-height:1;color:var(--text)}
+.stat-label{font-size:0.75rem;color:var(--muted);margin-top:4px;font-weight:500}
+
+/* PR rows */
+.pr-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border)}
+
+/* Status badge */
+.status-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:0.75rem;font-weight:700;white-space:nowrap;flex-shrink:0}
+.status-finished{background:rgba(34,197,94,0.12);color:#16a34a}
+.status-in_progress{background:rgba(96,165,250,0.15);color:var(--accent)}
+.status-not_started{background:var(--bg-secondary);color:var(--muted)}
+
+.list{list-style:none;padding:0;margin:0}
+.list li{padding:12px 0;border-bottom:1px solid var(--border)}
+.list li:last-child{border-bottom:none}
+
+.muted{color:var(--muted)}
+.small{font-size:0.85rem}
+
+.foot{padding:20px 0;text-align:center;font-size:0.85rem;color:var(--muted);border-top:1px solid var(--border)}
+
+form{display:flex;flex-direction:column}
+
+@media(min-width:520px){
+  .app{padding:24px 24px calc(100px + env(safe-area-inset-bottom))}
+  .card{padding:22px}
+}
+
+/* ── Theme swatch grid (Settings tab) ── */
+.theme-swatches{display:flex;flex-wrap:wrap;gap:10px}
+.theme-swatch{width:44px;height:44px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform 0.15s,border-color 0.15s;flex-shrink:0}
+.theme-swatch.active{border-color:var(--text);transform:scale(1.15)}
+.theme-swatch:hover{transform:scale(1.1)}

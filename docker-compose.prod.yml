@@ -1,0 +1,26 @@
+# docker-compose.prod.yml
+# Use this on Unraid (or any remote host) — pulls pre-built images from ghcr.io.
+# Do NOT use this for local development (use docker-compose.yml instead).
+#
+# Deploy example:
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  backend:
+    image: ghcr.io/bndct-devops/lifty-backend:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - /mnt/user/appdata/lifty:/data   # adjust Unraid path as needed
+    environment:
+      - LIFTY_DB=/data/lifty.db
+
+  frontend:
+    image: ghcr.io/bndct-devops/lifty-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend

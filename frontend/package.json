@@ -1,0 +1,18 @@
+{
+  "name": "lifty-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 5173"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "axios": "1.4.0"
+  },
+  "devDependencies": {
+    "vite": "5.0.0"
+  }
+}
