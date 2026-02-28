@@ -28,6 +28,7 @@ class ProfileOut(BaseModel):
     week_start: str
     avatar_color: str
     ding_enabled: bool
+    has_pin: bool = False
     created_at: datetime
 
     class Config:
@@ -44,6 +45,12 @@ class WorkoutUpdate(BaseModel):
     name: Optional[str] = None
     notes: Optional[str] = None
     is_rest_day: Optional[bool] = None
+class PinSet(BaseModel):
+    pin: Optional[str] = None  # null/empty to clear PIN
+
+
+class PinVerify(BaseModel):
+    pin: str
 
 
 class ExerciseCreate(BaseModel):

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Response, Query, UploadFile, File, Form
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlmodel import Session, select, text, or_
 from backend.db import engine, create_db_and_tables
 from backend.models import Exercise, Workout, SetEntry, Profile
@@ -8,8 +8,13 @@ from backend.seed_exercises import seed as seed_exercises
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter
 from typing import List, Optional
 from datetime import datetime, timedelta
-import io, csv, re
+import io, csv, re, hashlib, os as _os, time as _time
 import uvicorn
+
+# ── Rate limiting for profile password verification ──
+_pw_attempts: dict = {}   # profile_id -> {"count": int, "locked_until": float}
+_PW_MAX_ATTEMPTS = 5
+_PW_LOCKOUT_SECS = 30
 
 app = FastAPI(title="lifty API")
 
@@ -74,11 +79,32 @@ def metrics():
 # Profiles
 # ─────────────────────────────────────────────
 
+def _hash_pin(pin: str) -> str:
+    salt = _os.urandom(16)
+    dk = hashlib.pbkdf2_hmac('sha256', pin.encode(), salt, 100_000)
+    return salt.hex() + ':' + dk.hex()
+
+def _verify_pin(pin: str, stored: str) -> bool:
+    try:
+        salt_hex, dk_hex = stored.split(':', 1)
+        dk = hashlib.pbkdf2_hmac('sha256', pin.encode(), bytes.fromhex(salt_hex), 100_000)
+        return dk.hex() == dk_hex
+    except Exception:
+        return False
+
+def _profile_out(p) -> dict:
+    return {
+        'id': p.id, 'name': p.name, 'unit': p.unit, 'theme': p.theme,
+        'rest_duration': p.rest_duration, 'week_start': p.week_start,
+        'avatar_color': p.avatar_color, 'ding_enabled': p.ding_enabled,
+        'has_pin': p.pin_hash is not None, 'created_at': p.created_at,
+    }
+
 @app.get("/api/profiles", response_model=List[schemas.ProfileOut])
 def list_profiles():
     with Session(engine) as session:
         profiles = session.exec(select(Profile).order_by(Profile.created_at)).all()
-    return profiles
+    return [_profile_out(p) for p in profiles]
 
 
 @app.post("/api/profiles", response_model=schemas.ProfileOut, status_code=201)
@@ -88,7 +114,7 @@ def create_profile(data: schemas.ProfileCreate):
         session.add(p)
         session.commit()
         session.refresh(p)
-    return p
+    return _profile_out(p)
 
 
 @app.get("/api/profiles/{profile_id}", response_model=schemas.ProfileOut)
@@ -97,7 +123,7 @@ def get_profile(profile_id: int):
         p = session.get(Profile, profile_id)
         if not p:
             return Response(status_code=404)
-    return p
+    return _profile_out(p)
 
 
 @app.patch("/api/profiles/{profile_id}", response_model=schemas.ProfileOut)
@@ -123,7 +149,7 @@ def update_profile(profile_id: int, data: schemas.ProfileUpdate):
         session.add(p)
         session.commit()
         session.refresh(p)
-    return p
+    return _profile_out(p)
 
 
 @app.delete("/api/profiles/{profile_id}", status_code=204)
@@ -146,6 +172,50 @@ def delete_profile(profile_id: int):
         session.delete(p)
         session.commit()
     return Response(status_code=204)
+
+
+@app.post("/api/profiles/{profile_id}/set-pin", response_model=schemas.ProfileOut)
+def set_profile_pin(profile_id: int, data: schemas.PinSet):
+    with Session(engine) as session:
+        p = session.get(Profile, profile_id)
+        if not p:
+            return Response(status_code=404)
+        if data.pin:
+            if not (4 <= len(data.pin.strip()) <= 64):
+                return Response(status_code=422)
+            p.pin_hash = _hash_pin(data.pin)
+        else:
+            p.pin_hash = None
+            _pw_attempts.pop(profile_id, None)  # clear lockout on password removal
+        session.add(p)
+        session.commit()
+        session.refresh(p)
+    return _profile_out(p)
+
+
+@app.post("/api/profiles/{profile_id}/verify-pin")
+def verify_profile_pin(profile_id: int, data: schemas.PinVerify):
+    now = _time.time()
+    rec = _pw_attempts.get(profile_id, {"count": 0, "locked_until": 0.0})
+    if rec["locked_until"] > now:
+        retry_after = int(rec["locked_until"] - now) + 1
+        return JSONResponse({"ok": False, "locked": True, "retry_after": retry_after}, status_code=429)
+    with Session(engine) as session:
+        p = session.get(Profile, profile_id)
+        if not p:
+            return Response(status_code=404)
+        if not p.pin_hash:
+            return {"ok": True}
+        if _verify_pin(data.pin, p.pin_hash):
+            _pw_attempts.pop(profile_id, None)  # clear on success
+            return {"ok": True}
+        # wrong password — increment counter
+        rec["count"] = rec.get("count", 0) + 1
+        if rec["count"] >= _PW_MAX_ATTEMPTS:
+            rec["locked_until"] = now + _PW_LOCKOUT_SECS
+            rec["count"] = 0
+        _pw_attempts[profile_id] = rec
+        return {"ok": False, "locked": False}
 
 
 _STRONG_BODY_PART = {

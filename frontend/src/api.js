@@ -177,3 +177,20 @@ export async function getMuscleGroups(profileId, weeks = 12) {
   return res.json()
 }
 
+export async function setPin(profileId, pin) {
+  const res = await fetch(base + `/api/profiles/${profileId}/set-pin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin }),
+  })
+  return res.json()
+}
+
+export async function verifyPin(profileId, pin) {
+  const res = await fetch(base + `/api/profiles/${profileId}/verify-pin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin }),
+  })
+  return res.json()
+}

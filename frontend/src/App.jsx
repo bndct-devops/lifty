@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay } from './api'
+import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin } from './api'
+import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, X, Timer, Flag, CheckCircle2, Check } from 'lucide-react'
 
 // ── Unit helpers (store in kg internally, display in user's unit) ──
 export function fmtWeight(kg, unit) {
@@ -70,6 +71,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([])
   const [profileLoading, setProfileLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [pinSettingMode, setPinSettingMode] = useState(null) // 'set' | 'change' | null
   const [importState, setImportState] = useState(null) // null | 'loading' | {result}
   const [markingRestDay, setMarkingRestDay] = useState(false)
   const [sessionSets, setSessionSets] = useState([])
@@ -430,7 +432,7 @@ export default function App() {
                   if (r?.id) setWorkouts(ws => [...ws.filter(w => w.id !== r.id), r])
                   setMarkingRestDay(false)
                 }} style={{ width: '100%', padding: '14px', borderRadius: 12, border: '1px dashed var(--border)', background: 'transparent', color: todayRestDay ? 'var(--accent)' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: todayRestDay ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-                  {todayRestDay ? '✓ Rest day logged' : markingRestDay ? 'Logging…' : 'Mark as rest day'}
+                  {todayRestDay ? <><Check size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />Rest day logged</> : markingRestDay ? 'Logging…' : 'Mark as rest day'}
                 </button>
               )
             })()}
@@ -577,9 +579,9 @@ export default function App() {
             {/* Calendar filter */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <button onClick={() => setCalendarMonthOffset(calendarMonthOffset - 1)} style={{ padding: '6px 14px' }}>‹</button>
+                <button onClick={() => setCalendarMonthOffset(calendarMonthOffset - 1)} style={{ padding: '6px 10px', display: 'flex', alignItems: 'center' }}><ChevronLeft size={18} /></button>
                 <p className="section-heading" style={{ margin: 0 }}>{monthStart.toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
-                <button onClick={() => setCalendarMonthOffset(calendarMonthOffset + 1)} style={{ padding: '6px 14px' }}>›</button>
+                <button onClick={() => setCalendarMonthOffset(calendarMonthOffset + 1)} style={{ padding: '6px 10px', display: 'flex', alignItems: 'center' }}><ChevronRight size={18} /></button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
@@ -959,7 +961,7 @@ export default function App() {
 
       {/* Settings bottom sheet */}
       {showSettings && (
-        <BottomSheet onClose={() => setShowSettings(false)} maxHeight="88vh"
+        <BottomSheet onClose={() => { setShowSettings(false); setPinSettingMode(null) }} maxHeight="88vh"
           dragZoneContent={
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -971,8 +973,8 @@ export default function App() {
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Profile settings</div>
                 </div>
               </div>
-              <button onClick={() => setShowSettings(false)}
-                style={{ background: 'none', border: 'none', fontSize: '1.1rem', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>✕</button>
+              <button onClick={() => { setShowSettings(false); setPinSettingMode(null) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><X size={18} /></button>
             </div>
           }>
             {/* Scrollable body */}
@@ -1080,6 +1082,49 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              {/* Profile Password */}
+              <div className="card" style={{ margin: 0 }}>
+                <p className="section-heading">Profile Password</p>
+                {activeProfile.has_pin ? (
+                  <div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>Password is set. Required when selecting this profile.</div>
+                    {pinSettingMode === 'change' ? (
+                      <PinSetForm
+                        onSave={async pw => {
+                          const updated = await setPin(activeProfile.id, pw)
+                          setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
+                          setPinSettingMode(null)
+                        }}
+                        onCancel={() => setPinSettingMode(null)}
+                      />
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" style={{ flex: 1 }} onClick={() => setPinSettingMode('change')}>Change Password</button>
+                        <button type="button" style={{ flex: 1, color: '#e06c75' }} onClick={async () => {
+                          const updated = await setPin(activeProfile.id, null)
+                          setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
+                        }}>Remove Password</button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>No password set. Anyone can select this profile.</div>
+                    {pinSettingMode === 'set' ? (
+                      <PinSetForm
+                        onSave={async pw => {
+                          const updated = await setPin(activeProfile.id, pw)
+                          setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
+                          setPinSettingMode(null)
+                        }}
+                        onCancel={() => setPinSettingMode(null)}
+                      />
+                    ) : (
+                      <button type="button" style={{ width: '100%' }} onClick={() => setPinSettingMode('set')}>Set Password</button>
+                    )}
+                  </div>
+                )}
+              </div>
               {/* Export */}
               <div className="card" style={{ margin: 0 }}>
                 <p className="section-heading">Export</p>
@@ -1134,6 +1179,7 @@ export default function App() {
                   localStorage.removeItem('activeProfileId')
                   setActiveProfile(null)
                   setShowSettings(false)
+                  setPinSettingMode(null)
                 }}>Switch Profile</button>
               </div>
               {/* Danger zone */}
@@ -1251,7 +1297,7 @@ function DangerZone({ profileId, onDeleted }) {
               disabled={!ready || busy}
               onClick={handleDelete}
               style={{ width: '100%', background: ready ? '#e06c75' : 'var(--bg-secondary)', color: ready ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, cursor: ready ? 'pointer' : 'not-allowed', opacity: busy ? 0.6 : 1, fontFamily: 'inherit', fontSize: '1rem', transition: 'background 0.15s' }}>
-              {busy ? 'Deleting…' : '🗑 Delete All Workouts'}
+              {busy ? 'Deleting…' : <><Trash2 size={15} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} /> Delete All Workouts</>}
             </button>
           </>
       }
@@ -1419,7 +1465,7 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
             <div style={{ fontWeight: 800, fontSize: '1.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workout.name}</div>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>{dateStr}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)', flexShrink: 0 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)', flexShrink: 0 }}><X size={16} /></button>
         </div>
 
         {/* Stats + donut row */}
@@ -1503,6 +1549,23 @@ function ProfileSelector({ profiles, onSelect, onCreate }) {
   const [creating, setCreating] = React.useState(false)
   const [newName, setNewName] = React.useState('')
   const [saving, setSaving] = React.useState(false)
+  const [pinTarget, setPinTarget] = React.useState(null)
+  const [pwInput, setPwInput] = React.useState('')
+  const [showPw, setShowPw] = React.useState(false)
+  const [pinError, setPinError] = React.useState('')
+  const [pinVerifying, setPinVerifying] = React.useState(false)
+  const [lockedUntil, setLockedUntil] = React.useState(0)
+  const [, forceUpdate] = React.useReducer(x => x + 1, 0)
+
+  // countdown tick while locked out
+  React.useEffect(() => {
+    if (lockedUntil <= 0) return
+    const id = setInterval(() => {
+      if (Date.now() >= lockedUntil) { setLockedUntil(0); clearInterval(id) }
+      else forceUpdate()
+    }, 1000)
+    return () => clearInterval(id)
+  }, [lockedUntil])
 
   async function handleCreate(e) {
     e.preventDefault()
@@ -1512,21 +1575,101 @@ function ProfileSelector({ profiles, onSelect, onCreate }) {
     setSaving(false)
   }
 
+  function handleProfileClick(p) {
+    if (p.has_pin) {
+      setPinTarget(p); setPwInput(''); setPinError(''); setShowPw(false); setLockedUntil(0)
+    } else {
+      onSelect(p)
+    }
+  }
+
+  async function submitPw(e) {
+    e.preventDefault()
+    if (!pwInput.trim() || pinVerifying) return
+    setPinVerifying(true)
+    setPinError('')
+    const result = await verifyPin(pinTarget.id, pwInput)
+    setPinVerifying(false)
+    if (result.ok) {
+      onSelect(pinTarget)
+    } else if (result.locked) {
+      setLockedUntil(Date.now() + result.retry_after * 1000)
+      setPwInput('')
+    } else {
+      setPinError('Incorrect password')
+      setPwInput('')
+      setTimeout(() => setPinError(''), 600)
+    }
+  }
+
+  const secsLeft = lockedUntil > 0 ? Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000)) : 0
+
+  if (pinTarget) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: '24px 16px', gap: 24 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: pinTarget.avatar_color || 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1.6rem', margin: '0 auto 12px' }}>
+            {pinTarget.name.charAt(0).toUpperCase()}
+          </div>
+          <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{pinTarget.name}</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>Enter password to continue</div>
+        </div>
+
+        <form onSubmit={submitPw} style={{ width: '100%', maxWidth: 340, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type={showPw ? 'text' : 'password'}
+              autoFocus
+              autoComplete="current-password"
+              placeholder="Password"
+              value={pwInput}
+              onChange={e => { setPwInput(e.target.value); setPinError('') }}
+              disabled={pinVerifying || secsLeft > 0}
+              style={{ width: '100%', paddingRight: 44, marginBottom: 0, animation: pinError ? 'pinShake 0.4s ease' : 'none', borderColor: pinError ? '#e06c75' : undefined }}
+            />
+            <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
+              style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.1rem', padding: 4, lineHeight: 1 }}>
+              {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+          {pinError && <div style={{ color: '#e06c75', fontSize: '0.85rem', textAlign: 'center' }}>{pinError}</div>}
+          {secsLeft > 0 && (
+            <div style={{ color: '#e06c75', fontSize: '0.85rem', textAlign: 'center' }}>
+              Too many attempts — try again in {secsLeft}s
+            </div>
+          )}
+          <button type="submit" className="primary" style={{ width: '100%' }}
+            disabled={pinVerifying || !pwInput.trim() || secsLeft > 0}>
+            {pinVerifying ? 'Checking…' : 'Unlock →'}
+          </button>
+        </form>
+
+        <button type="button" onClick={() => { setPinTarget(null); setPwInput('') }}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.9rem', cursor: 'pointer', padding: 8 }}>
+          ← Back
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: '24px 16px', gap: 20 }}>
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        <div style={{ fontSize: '3rem', marginBottom: 8 }}>🏋️</div>
+        <Dumbbell size={48} strokeWidth={1.5} style={{ marginBottom: 8, color: 'var(--accent)' }} />
         <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>lifty</h1>
         <p style={{ margin: '8px 0 0', color: 'var(--muted)', fontSize: '1rem' }}>Who's training today?</p>
       </div>
 
       <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {profiles.map(p => (
-          <button key={p.id} type="button" onClick={() => onSelect(p)}
+          <button key={p.id} type="button" onClick={() => handleProfileClick(p)}
             style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
-            <span style={{ fontSize: '1.6rem' }}>👤</span>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: p.avatar_color || 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1rem', flexShrink: 0 }}>
+              {p.name.charAt(0).toUpperCase()}
+            </div>
             <span style={{ flex: 1 }}>{p.name}</span>
-            <span style={{ color: 'var(--muted)', fontSize: '1.1rem' }}>›</span>
+            {p.has_pin && <Lock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
+            <ChevronRight size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
           </button>
         ))}
 
@@ -1585,6 +1728,48 @@ function ProfileNameEditor({ profile, onSave }) {
   )
 }
 
+function PinSetForm({ onSave, onCancel }) {
+  const [pw, setPw] = React.useState('')
+  const [confirm, setConfirm] = React.useState('')
+  const [showPw, setShowPw] = React.useState(false)
+  const [error, setError] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (pw.trim().length < 4) { setError('Password must be at least 4 characters'); return }
+    if (pw !== confirm) { setError('Passwords do not match'); return }
+    setSaving(true)
+    await onSave(pw)
+    setSaving(false)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <input type={showPw ? 'text' : 'password'} autoComplete="new-password"
+          placeholder="New password (min 4 chars)" value={pw} maxLength={64}
+          onChange={e => { setPw(e.target.value); setError('') }}
+          style={{ marginBottom: 0, paddingRight: 44, width: '100%' }} />
+        <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
+          style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.1rem', padding: 4, lineHeight: 1 }}>
+          {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
+      <input type={showPw ? 'text' : 'password'} autoComplete="new-password"
+        placeholder="Confirm password" value={confirm} maxLength={64}
+        onChange={e => { setConfirm(e.target.value); setError('') }}
+        style={{ marginBottom: 0 }} />
+      {error && <div style={{ color: '#e06c75', fontSize: '0.82rem' }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={onCancel} style={{ flex: 1 }}>Cancel</button>
+        <button type="submit" className="primary" style={{ flex: 1 }} disabled={saving}>
+          {saving ? 'Saving…' : 'Save Password'}
+        </button>
+      </div>
+    </form>
+  )
+}
 
 function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
@@ -1630,7 +1815,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
         id: 'rest-timer',
         delay,
         title: 'lifty',
-        body: 'Rest done — time to lift! 💪',
+        body: 'Rest done — time to lift!',
       })
     }
   }
@@ -1830,7 +2015,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
               style={{ fontWeight: 800, fontSize: '1.35rem', lineHeight: 1.2, cursor: 'text', borderRadius: 6, padding: '2px 4px 2px 0', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workout.name}</div>
           )}
           <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
-            {workout.status === 'in_progress' ? '⏱' : '🏁'} {workoutTimer} &nbsp;·&nbsp; {setCount} set{setCount !== 1 ? 's' : ''}
+            {workout.status === 'in_progress' ? <Timer size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <Flag size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />} {workoutTimer} &nbsp;·&nbsp; {setCount} set{setCount !== 1 ? 's' : ''}
           </div>
         </div>
         {workout.status === 'in_progress' && (
@@ -1841,7 +2026,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
           </button>
         )}
         <button onClick={onExit}
-          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: '0.95rem', lineHeight: 1, flexShrink: 0 }}>✕</button>
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><X size={16} /></button>
       </div>
 
       {/* Cancel confirmation modal */}
@@ -1949,7 +2134,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                             <span style={{ fontSize: '0.95rem', fontWeight: 600, textAlign: 'center' }}>{dw(s.weight)}</span>
                             <span style={{ fontSize: '0.95rem', fontWeight: 600, textAlign: 'center' }}>{s.reps ?? '—'}</span>
                             <button type="button" onClick={() => onDeleteSet(workout.id, s.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', padding: 0, lineHeight: 1 }}>✕</button>
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}><X size={15} /></button>
                           </div>
                         )
                       })}
@@ -1976,7 +2161,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                               onChange={e => setReps(e.target.value)} placeholder="—"
                               style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
                             <button type="submit" disabled={!reps && !weight}
-                              style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '0.9rem', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}>✓</button>
+                              style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}><Check size={15} /></button>
                           </div>
                         </form>
                       )}
@@ -2010,7 +2195,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
               <div className="card" style={{ margin: 0, padding: '12px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes</span>
-                  <button type="button" onClick={() => setNoteOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}>✕</button>
+                  <button type="button" onClick={() => setNoteOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}><X size={15} /></button>
                 </div>
                 <textarea
                   value={noteText}
@@ -2040,7 +2225,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
         {workout.status === 'finished' && (
           <div className="card" style={{ margin: 0, padding: '24px 18px' }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: 8 }}>🏁</div>
+              <CheckCircle2 size={48} strokeWidth={1.5} style={{ marginBottom: 8, color: 'var(--accent)' }} />
               <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>Workout complete</div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{setCount} set{setCount !== 1 ? 's' : ''} · {workoutTimer}</div>
             </div>
@@ -2074,7 +2259,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
               <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Add Exercise</span>
               <button onClick={() => { setShowExPicker(false); setExSearch('') }}
-                style={{ background: 'none', border: 'none', fontSize: '1.1rem', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>✕</button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><X size={18} /></button>
             </div>
             <div style={{ padding: '0 16px 8px' }}>
               <input autoFocus placeholder="Search exercises…" value={exSearch}

@@ -149,3 +149,11 @@ form{display:flex;flex-direction:column}
 .theme-swatch{width:44px;height:44px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:transform 0.15s,border-color 0.15s;flex-shrink:0}
 .theme-swatch.active{border-color:var(--text);transform:scale(1.15)}
 .theme-swatch:hover{transform:scale(1.1)}
+
+@keyframes pinShake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-8px)}
+  40%{transform:translateX(8px)}
+  60%{transform:translateX(-8px)}
+  80%{transform:translateX(8px)}
+}
