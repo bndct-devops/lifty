@@ -1548,9 +1548,8 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
 
   React.useEffect(() => {
     if (!restRunning || !restEndRef.current) return
-    const delay = Math.max(0, restEndRef.current - Date.now())
-    // Fires once at the exact expiry time
-    const dingId = setTimeout(() => {
+
+    function finish() {
       playDing()
       if (navigator.vibrate) navigator.vibrate([300, 100, 300])
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
@@ -1558,30 +1557,28 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
       }
       setRestLeft(null)
       setRestRunning(false)
-    }, delay)
-    // Tick every 500 ms — reads absolute time so it self-corrects after backgrounding
+    }
+
+    // Tick every 250ms — recomputes from absolute end time, handles finish itself
     const tickId = setInterval(() => {
       const left = Math.ceil((restEndRef.current - Date.now()) / 1000)
-      if (left > 0) setRestLeft(left)
-    }, 500)
-    // Catch the case where the browser froze the timers while backgrounded
-    function onVisible() {
-      if (document.visibilityState !== 'visible' || !restEndRef.current) return
-      const left = Math.ceil((restEndRef.current - Date.now()) / 1000)
       if (left <= 0) {
-        playDing()
-        if (navigator.vibrate) navigator.vibrate([300, 100, 300])
-        setRestLeft(null)
-        setRestRunning(false)
-        clearTimeout(dingId)
         clearInterval(tickId)
+        finish()
       } else {
         setRestLeft(left)
       }
+    }, 250)
+
+    // Correct immediately on resume from background
+    function onVisible() {
+      if (document.visibilityState !== 'visible' || !restEndRef.current) return
+      const left = Math.ceil((restEndRef.current - Date.now()) / 1000)
+      if (left <= 0) { clearInterval(tickId); finish() }
+      else setRestLeft(left)
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
-      clearTimeout(dingId)
       clearInterval(tickId)
       document.removeEventListener('visibilitychange', onVisible)
     }
