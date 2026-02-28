@@ -48,4 +48,11 @@ class SetEntry(SQLModel, table=True):
     reps: Optional[int] = None
     weight: Optional[float] = None
     timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow)
+
+
+class BodyweightEntry(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    profile_id: int = Field(foreign_key="profile.id")
+    weight_kg: float
+    date: datetime = Field(default_factory=datetime.utcnow)
     order: Optional[int] = Field(default=0)

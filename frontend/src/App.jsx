@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin } from './api'
+import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry } from './api'
 import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, X, Timer, Flag, CheckCircle2, Check } from 'lucide-react'
 
 // ── Unit helpers (store in kg internally, display in user's unit) ──
@@ -87,6 +87,10 @@ export default function App() {
   const [dailyVolumeLoaded, setDailyVolumeLoaded] = useState(false)
   const [muscleData, setMuscleData] = useState([])             // [{body_part, sets, tonnage_kg}]
   const [muscleLoaded, setMuscleLoaded] = useState(false)
+  const [bwData, setBwData] = useState([])                     // [{id, weight_kg, date}]
+  const [bwLoaded, setBwLoaded] = useState(false)
+  const [bwInput, setBwInput] = useState('')
+  const [bwSaving, setBwSaving] = useState(false)
   const [detailSheet, setDetailSheet] = useState(null) // { workout, detail } | null
   const [expandedExGroups, setExpandedExGroups] = useState(new Set())
   const [exFilterChip, setExFilterChip] = useState('')
@@ -136,7 +140,10 @@ export default function App() {
     if (activeTab === 'progress' && !muscleLoaded && activeProfile) {
       getMuscleGroups(activeProfile.id, progressRange === 'week' ? 1 : progressRange).then(data => { setMuscleData(data || []); setMuscleLoaded(true) })
     }
-  }, [activeTab, prsLoaded, volumeLoaded, dailyVolumeLoaded, muscleLoaded, progressRange, activeProfile])
+    if (activeTab === 'progress' && !bwLoaded && activeProfile) {
+      getBodyweight(activeProfile.id).then(data => { setBwData(data || []); setBwLoaded(true) })
+    }
+  }, [activeTab, prsLoaded, volumeLoaded, dailyVolumeLoaded, muscleLoaded, bwLoaded, progressRange, activeProfile])
 
   const [exSearch, setExSearch] = useState('')
   const [editingExerciseId, setEditingExerciseId] = useState(null)
@@ -155,6 +162,7 @@ export default function App() {
     setVolumeLoaded(false)
     setDailyVolumeLoaded(false)
     setMuscleLoaded(false)
+    setBwLoaded(false)
   }
 
   function utcMs(s) { return s ? new Date(s.endsWith('Z') ? s : s + 'Z').getTime() : null }
@@ -215,6 +223,7 @@ export default function App() {
     setVolumeLoaded(false)
     setDailyVolumeLoaded(false)
     setMuscleLoaded(false)
+    setBwLoaded(false)
     fetchList()
   }
 
@@ -695,6 +704,85 @@ export default function App() {
                     <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--accent)' }}/>Workout</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#57965c' }}/>Rest day</div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Bodyweight log */}
+            <div className="card">
+              <p className="section-heading">Body Weight</p>
+              <form onSubmit={async e => {
+                e.preventDefault()
+                const n = parseFloat(bwInput)
+                if (isNaN(n) || n <= 0) return
+                setBwSaving(true)
+                const kg = activeProfile.unit === 'lbs' ? Math.round(n / 2.20462 * 100) / 100 : n
+                await logBodyweight(activeProfile.id, kg)
+                const fresh = await getBodyweight(activeProfile.id)
+                setBwData(fresh || [])
+                setBwInput('')
+                setBwSaving(false)
+              }} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <input
+                  type="number" inputMode="decimal" step="0.1" min="20" max="500"
+                  placeholder={`Today's weight (${activeProfile.unit})`}
+                  value={bwInput}
+                  onChange={e => setBwInput(e.target.value)}
+                  style={{ marginBottom: 0, flex: 1 }}
+                />
+                <button type="submit" className="primary" disabled={bwSaving || !bwInput} style={{ whiteSpace: 'nowrap' }}>
+                  {bwSaving ? '…' : 'Log'}
+                </button>
+              </form>
+              {!bwLoaded ? <p className="muted">Loading…</p> : bwData.length < 2 ? (
+                <p className="muted small">Log at least 2 entries to see a chart.</p>
+              ) : (() => {
+                const entries = [...bwData].sort((a, b) => new Date(a.date) - new Date(b.date))
+                const toDisp = w => activeProfile.unit === 'lbs' ? Math.round(w * 2.20462 * 10) / 10 : w
+                const weights = entries.map(e => toDisp(e.weight_kg))
+                const minW = Math.min(...weights), maxW = Math.max(...weights)
+                const range = maxW - minW || 0.1
+                const W = 320, H = 72, padL = 4, padR = 4, padT = 18, padB = 20
+                const n = entries.length
+                const xs = entries.map((_, i) => padL + (n === 1 ? (W - padL - padR) / 2 : i / (n - 1) * (W - padL - padR)))
+                const ys = weights.map(w => padT + (1 - (w - minW) / range) * H)
+                const polyline = xs.map((x, i) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ')
+                const fillPoly = `${xs[0].toFixed(1)},${(padT + H).toFixed(1)} ${polyline} ${xs[n-1].toFixed(1)},${(padT + H).toFixed(1)}`
+                function fmtD(d) { return new Date(d.endsWith('Z') ? d : d + 'Z').toLocaleDateString('default', { month: 'short', day: 'numeric' }) }
+                const labelIdxs = [0, Math.floor(n / 2), n - 1].filter((v, i, a) => a.indexOf(v) === i)
+                return (
+                  <div>
+                    <svg width="100%" viewBox={`0 0 ${W} ${padT + H + padB}`} style={{ display: 'block', marginBottom: 10 }}>
+                      <line x1={padL} y1={padT + H} x2={W - padR} y2={padT + H} stroke="var(--border)" strokeWidth="0.8" />
+                      <polyline points={fillPoly} fill="var(--accent)" opacity="0.1" />
+                      <polyline points={polyline} fill="none" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      {xs.map((x, i) => (
+                        <circle key={i} cx={x} cy={ys[i]} r={i === n - 1 ? 3 : 2}
+                          fill={i === n - 1 ? 'var(--accent)' : 'var(--bg-secondary)'}
+                          stroke={i === n - 1 ? 'var(--accent)' : 'var(--text-muted)'} strokeWidth="1" />
+                      ))}
+                      <text x={xs[n-1]} y={ys[n-1] - 6} textAnchor="middle" fontSize="9" fontWeight="700" fill="var(--accent)">{weights[n-1]}</text>
+                      {labelIdxs.map((idx, i) => (
+                        <text key={idx} x={xs[idx]} y={padT + H + padB - 2}
+                          textAnchor={i === 0 ? 'start' : i === labelIdxs.length - 1 ? 'end' : 'middle'}
+                          fontSize="8" fill="var(--muted)">{fmtD(entries[idx].date)}</text>
+                      ))}
+                    </svg>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {[...entries].reverse().slice(0, 5).map(entry => (
+                        <div key={entry.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{fmtD(entry.date)}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>{toDisp(entry.weight_kg)} {activeProfile.unit}</span>
+                            <button type="button" onClick={async () => {
+                              await deleteBodyweightEntry(activeProfile.id, entry.id)
+                              setBwData(d => d.filter(x => x.id !== entry.id))
+                            }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}><X size={14} /></button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )

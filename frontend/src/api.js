@@ -194,3 +194,22 @@ export async function verifyPin(profileId, pin) {
   })
   return res.json()
 }
+
+export async function logBodyweight(profileId, weightKg, date) {
+  const body = { weight_kg: weightKg }
+  if (date) body.date = date
+  const res = await fetch(base + `/api/profiles/${profileId}/bodyweight`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  return res.json()
+}
+
+export async function getBodyweight(profileId, limit = 90) {
+  const res = await fetch(base + `/api/profiles/${profileId}/bodyweight?limit=${limit}`)
+  return res.json()
+}
+
+export async function deleteBodyweightEntry(profileId, entryId) {
+  await fetch(base + `/api/profiles/${profileId}/bodyweight/${entryId}`, { method: 'DELETE' })
+}

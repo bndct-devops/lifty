@@ -53,6 +53,21 @@ class PinVerify(BaseModel):
     pin: str
 
 
+class BodyweightIn(BaseModel):
+    weight_kg: float
+    date: Optional[datetime] = None
+
+
+class BodyweightOut(BaseModel):
+    id: int
+    profile_id: int
+    weight_kg: float
+    date: datetime
+
+    class Config:
+        orm_mode = True
+
+
 class ExerciseCreate(BaseModel):
     name: str
     description: Optional[str] = None

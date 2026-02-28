@@ -2,7 +2,7 @@ from fastapi import FastAPI, Response, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlmodel import Session, select, text, or_
 from backend.db import engine, create_db_and_tables
-from backend.models import Exercise, Workout, SetEntry, Profile
+from backend.models import Exercise, Workout, SetEntry, Profile, BodyweightEntry
 from backend import schemas
 from backend.seed_exercises import seed as seed_exercises
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter
@@ -170,6 +170,46 @@ def delete_profile(profile_id: int):
         for ex in session.exec(select(Exercise).where(Exercise.profile_id == profile_id)).all():
             session.delete(ex)
         session.delete(p)
+        session.commit()
+    return Response(status_code=204)
+
+
+@app.post("/api/profiles/{profile_id}/bodyweight", response_model=schemas.BodyweightOut, status_code=201)
+def log_bodyweight(profile_id: int, data: schemas.BodyweightIn):
+    with Session(engine) as session:
+        p = session.get(Profile, profile_id)
+        if not p:
+            return Response(status_code=404)
+        entry = BodyweightEntry(
+            profile_id=profile_id,
+            weight_kg=round(data.weight_kg, 3),
+            date=data.date or datetime.utcnow(),
+        )
+        session.add(entry)
+        session.commit()
+        session.refresh(entry)
+    return entry
+
+
+@app.get("/api/profiles/{profile_id}/bodyweight", response_model=List[schemas.BodyweightOut])
+def get_bodyweight(profile_id: int, limit: int = Query(default=90)):
+    with Session(engine) as session:
+        entries = session.exec(
+            select(BodyweightEntry)
+            .where(BodyweightEntry.profile_id == profile_id)
+            .order_by(BodyweightEntry.date.asc())
+            .limit(limit)
+        ).all()
+    return entries
+
+
+@app.delete("/api/profiles/{profile_id}/bodyweight/{entry_id}", status_code=204)
+def delete_bodyweight(profile_id: int, entry_id: int):
+    with Session(engine) as session:
+        entry = session.get(BodyweightEntry, entry_id)
+        if not entry or entry.profile_id != profile_id:
+            return Response(status_code=404)
+        session.delete(entry)
         session.commit()
     return Response(status_code=204)
 
