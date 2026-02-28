@@ -2103,8 +2103,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     }
   }, [_activeSessionCount])
 
-  async function handleLogSet(e) {
-    e?.preventDefault()
+  async function handleLogSet() {
     if (!selectedExId || (!reps && !weight)) return
     const weightKg = weight ? parseWeight(weight, unit) : null
     const newSet = await onAddSet(selectedExId, reps, weightKg)
@@ -2300,29 +2299,31 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
 
                       {/* Input row for active exercise */}
                       {isActive && (
-                        <form onSubmit={handleLogSet}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 28px', gap: 6, alignItems: 'center', padding: '8px 0 10px' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent)' }}>{nextSetNum}</span>
-                            <button type="button"
-                              onClick={() => {
-                                if (!prevForNext) return
-                                const dispW = prevForNext.weight != null ? (unit === 'lbs' ? Math.round(prevForNext.weight * 2.20462 * 10) / 10 : prevForNext.weight) : ''
-                                setWeight(dispW !== '' ? String(dispW) : '')
-                                setReps(prevForNext.reps != null ? String(prevForNext.reps) : '')
-                              }}
-                              style={{ fontSize: '0.78rem', color: prevForNext ? 'var(--accent)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'none', border: 'none', padding: 0, cursor: prevForNext ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'inherit' }}>
-                              {prevForNext ? `${dw(prevForNext.weight)} × ${prevForNext.reps}` : '—'}
-                            </button>
-                            <input type="number" inputMode="decimal" step="0.5" value={weight}
-                              onChange={e => setWeight(e.target.value)} placeholder="—"
-                              style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
-                            <input type="number" inputMode="numeric" value={reps}
-                              onChange={e => setReps(e.target.value)} placeholder="—"
-                              style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
-                            <button type="submit" disabled={!reps && !weight}
-                              style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}><Check size={15} /></button>
-                          </div>
-                        </form>
+                        <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 28px', gap: 6, alignItems: 'center', padding: '8px 0 10px' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent)' }}>{nextSetNum}</span>
+                          <button type="button"
+                            onClick={() => {
+                              if (!prevForNext) return
+                              const dispW = prevForNext.weight != null ? (unit === 'lbs' ? Math.round(prevForNext.weight * 2.20462 * 10) / 10 : prevForNext.weight) : ''
+                              setWeight(dispW !== '' ? String(dispW) : '')
+                              setReps(prevForNext.reps != null ? String(prevForNext.reps) : '')
+                            }}
+                            style={{ fontSize: '0.78rem', color: prevForNext ? 'var(--accent)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', background: 'none', border: 'none', padding: 0, cursor: prevForNext ? 'pointer' : 'default', textAlign: 'left', fontFamily: 'inherit' }}>
+                            {prevForNext ? `${dw(prevForNext.weight)} × ${prevForNext.reps}` : '—'}
+                          </button>
+                          <input type="number" inputMode="decimal" step="any" value={weight}
+                            onChange={e => setWeight(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleLogSet()}
+                            placeholder="—"
+                            style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
+                          <input type="number" inputMode="numeric" step="any" value={reps}
+                            onChange={e => setReps(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleLogSet()}
+                            placeholder="—"
+                            style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
+                          <button type="button" onClick={handleLogSet} disabled={!reps && !weight}
+                            style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}><Check size={15} /></button>
+                        </div>
                       )}
                       {/* Plate calculator */}
                       {isActive && plateCalc && (() => {
