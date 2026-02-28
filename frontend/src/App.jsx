@@ -1142,12 +1142,31 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
     return <path key={part} d={path} fill={COLORS[i % COLORS.length]} />
   }) : null
 
+  const dragRef = React.useRef({ startY: 0, dragging: false })
+  const [dragY, setDragY] = React.useState(0)
+
+  function onTouchStart(e) {
+    dragRef.current = { startY: e.touches[0].clientY, dragging: true }
+    setDragY(0)
+  }
+  function onTouchMove(e) {
+    if (!dragRef.current.dragging) return
+    const dy = e.touches[0].clientY - dragRef.current.startY
+    if (dy > 0) setDragY(dy)
+  }
+  function onTouchEnd() {
+    dragRef.current.dragging = false
+    if (dragY > 80) { setDragY(0); onClose() }
+    else setDragY(0)
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
       onClick={onClose}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-      <div style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
-        onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column', transform: `translateY(${dragY}px)`, transition: dragY === 0 ? 'transform 0.25s ease' : 'none' }}
+        onClick={e => e.stopPropagation()}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
         {/* Handle */}
         <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
