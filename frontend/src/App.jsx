@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry } from './api'
-import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, X, Timer, Flag, CheckCircle2, Check } from 'lucide-react'
+import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory } from './api'
+import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, X, Timer, Flag, CheckCircle2, Check, TrendingUp } from 'lucide-react'
 
 // ── Unit helpers (store in kg internally, display in user's unit) ──
 export function fmtWeight(kg, unit) {
@@ -390,6 +390,8 @@ export default function App() {
         unit={activeProfile.unit || 'kg'}
         restDuration={activeProfile.rest_duration || 90}
         dingEnabled={activeProfile.ding_enabled !== false}
+        overloadHints={activeProfile.overload_hints !== false}
+        plateCalc={activeProfile.plate_calculator !== false}
         onRestDurationChange={async d => {
           const updated = await updateProfile(activeProfile.id, { rest_duration: d })
           setActiveProfile(prev => ({ ...prev, rest_duration: updated.rest_duration }))
@@ -1169,6 +1171,32 @@ export default function App() {
                     <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
                   </button>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>Progressive overload hint</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Suggest next weight during workouts</div>
+                  </div>
+                  <button type="button" onClick={async () => {
+                    const next = !(activeProfile.overload_hints !== false)
+                    const updated = await updateProfile(activeProfile.id, { overload_hints: next })
+                    setActiveProfile(prev => ({ ...prev, overload_hints: updated.overload_hints }))
+                  }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.overload_hints !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.overload_hints !== false ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>Plate calculator</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Show plates breakdown for barbell lifts</div>
+                  </div>
+                  <button type="button" onClick={async () => {
+                    const next = !(activeProfile.plate_calculator !== false)
+                    const updated = await updateProfile(activeProfile.id, { plate_calculator: next })
+                    setActiveProfile(prev => ({ ...prev, plate_calculator: updated.plate_calculator }))
+                  }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.plate_calculator !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.plate_calculator !== false ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                  </button>
+                </div>
               </div>
               {/* Profile Password */}
               <div className="card" style={{ margin: 0 }}>
@@ -1859,7 +1887,7 @@ function PinSetForm({ onSave, onCancel }) {
   )
 }
 
-function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange }) {
+function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
 
   const [, setTick] = React.useState(0)
@@ -1891,10 +1919,23 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   const [reps, setReps] = React.useState('')
   const [weight, setWeight] = React.useState('')
   const [lastSetsByExId, setLastSetsByExId] = React.useState({})
+  const [historySheet, setHistorySheet] = React.useState(null) // null | {exId, name, data}
+  const [historyLoading, setHistoryLoading] = React.useState(false)
   const [restDuration, setRestDuration] = React.useState(propRestDuration)
   const [restLeft, setRestLeft] = React.useState(null)
   const [restRunning, setRestRunning] = React.useState(false)
   const restEndRef = React.useRef(null)
+
+  async function openHistory(exId, exName) {
+    setHistorySheet({ exId, name: exName, data: null })
+    setHistoryLoading(true)
+    try {
+      const data = await getExerciseHistory(exId, workout.profile_id)
+      setHistorySheet(s => s?.exId === exId ? { ...s, data } : s)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
   function scheduleSwNotif(delay) {
     if (navigator.serviceWorker?.controller) {
@@ -2189,6 +2230,10 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                       <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex?.name || `Exercise ${exId}`}</span>
                       <span style={{ color: 'var(--muted)', fontSize: '0.82rem', flexShrink: 0, marginLeft: 8 }}>{sets.length} set{sets.length !== 1 ? 's' : ''}</span>
                     </button>
+                    <button type="button" onClick={() => openHistory(exId, ex?.name || `Exercise ${exId}`)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px 6px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      <TrendingUp size={16} />
+                    </button>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
                       <button type="button" onClick={() => moveExercise(exId, -1)} disabled={exIdx === 0}
                         style={{ background: 'none', border: 'none', cursor: exIdx === 0 ? 'default' : 'pointer', opacity: exIdx === 0 ? 0.2 : 0.6, padding: '2px 6px', lineHeight: 1, color: 'var(--text)', fontSize: '0.7rem' }}>
@@ -2200,6 +2245,21 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                       </button>
                     </div>
                   </div>
+
+                  {/* Overload hint */}
+                  {overloadHints && exLastSets.length > 0 && (() => {
+                    const best = exLastSets.reduce((b, s) => !b || (s.weight != null && s.weight > (b.weight ?? 0)) ? s : b, null)
+                    if (!best || best.weight == null) return null
+                    const suggestKg = unit === 'lbs' ? best.weight + 2.268 : best.weight + 2.5
+                    const dispBest = unit === 'lbs' ? `${Math.round(best.weight * 2.20462 * 10) / 10} lbs` : `${best.weight} kg`
+                    const dispSuggest = unit === 'lbs' ? `${Math.round(suggestKg * 2.20462 * 10) / 10} lbs` : `${suggestKg} kg`
+                    return (
+                      <div style={{ padding: '0 16px 8px', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <TrendingUp size={11} />
+                        <span>Last best: {dispBest} × {best.reps} — aim for <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{dispSuggest}</span></span>
+                      </div>
+                    )
+                  })()}
 
                   {showTable && (
                     <div style={{ padding: '0 16px' }}>
@@ -2253,6 +2313,36 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                           </div>
                         </form>
                       )}
+                      {/* Plate calculator */}
+                      {isActive && plateCalc && (() => {
+                        const wKg = parseWeight(weight, unit)
+                        if (!wKg || wKg <= 0) return null
+                        const BAR_KG = unit === 'lbs' ? 20.4116 : 20
+                        const perSide = (wKg - BAR_KG) / 2
+                        if (perSide <= 0) return null
+                        const PLATES = unit === 'lbs'
+                          ? [{ kg: 20.4116, lbl: '45' }, { kg: 15.8757, lbl: '35' }, { kg: 11.3398, lbl: '25' }, { kg: 4.5359, lbl: '10' }, { kg: 2.2680, lbl: '5' }, { kg: 1.1340, lbl: '2.5' }]
+                          : [{ kg: 25, lbl: '25' }, { kg: 20, lbl: '20' }, { kg: 15, lbl: '15' }, { kg: 10, lbl: '10' }, { kg: 5, lbl: '5' }, { kg: 2.5, lbl: '2.5' }, { kg: 1.25, lbl: '1.25' }]
+                        const chips = []
+                        let rem = perSide
+                        for (const plate of PLATES) {
+                          const n = Math.floor(rem / plate.kg + 0.001)
+                          if (n > 0) chips.push({ lbl: plate.lbl, n })
+                          rem -= n * plate.kg
+                        }
+                        if (chips.length === 0) return null
+                        return (
+                          <div style={{ padding: '2px 0 10px', display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}>Plates/side:</span>
+                            {chips.map(({ lbl, n }) => (
+                              <span key={lbl} style={{ fontSize: '0.72rem', background: 'var(--bg-secondary)', borderRadius: 4, padding: '2px 6px', fontWeight: 600, color: 'var(--text)' }}>
+                                {n}×{lbl}
+                              </span>
+                            ))}
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginLeft: 2 }}>({unit === 'lbs' ? '45 lb' : '20 kg'} bar)</span>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
 
@@ -2333,6 +2423,82 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
           </div>
         )}
       </div>
+
+      {/* Exercise history bottom sheet */}
+      {historySheet && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+          onClick={() => setHistorySheet(null)}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
+              <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>{historySheet.name}</span>
+              <button onClick={() => setHistorySheet(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><X size={18} /></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 32px' }}>
+              {historyLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>Loading…</div>
+              ) : !historySheet.data || historySheet.data.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No history yet for this exercise.</div>
+              ) : (() => {
+                const pts = historySheet.data.filter(p => p.max_weight_kg != null)
+                if (pts.length < 1) return <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>No weight data yet.</div>
+                const W = 320, H = 150
+                const pad = { top: 16, right: 12, bottom: 32, left: 40 }
+                const plotW = W - pad.left - pad.right
+                const plotH = H - pad.top - pad.bottom
+                const weights = pts.map(p => unit === 'lbs' ? Math.round(p.max_weight_kg * 2.20462 * 10) / 10 : p.max_weight_kg)
+                const minW = Math.min(...weights), maxW = Math.max(...weights)
+                const range = maxW - minW || 1
+                const n = pts.length
+                const coords = pts.map((p, i) => ({
+                  x: pad.left + (n < 2 ? plotW / 2 : (i / (n - 1)) * plotW),
+                  y: pad.top + plotH - ((weights[i] - minW) / range) * plotH,
+                  w: weights[i], date: p.date, sets: p.sets_count,
+                }))
+                const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ')
+                const fmt = d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                return (
+                  <>
+                    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', marginBottom: 12 }}>
+                      {[0, 0.5, 1].map(t => {
+                        const y = pad.top + plotH - t * plotH
+                        const val = minW + t * range
+                        return (
+                          <g key={t}>
+                            <line x1={pad.left} y1={y} x2={W - pad.right} y2={y} stroke="var(--border)" strokeWidth="1" />
+                            <text x={pad.left - 4} y={y + 4} fill="var(--text-muted)" fontSize="9" textAnchor="end">{Number.isInteger(val) ? val : val.toFixed(1)}</text>
+                          </g>
+                        )
+                      })}
+                      {n > 1 && <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+                      {coords.map((c, i) => (
+                        <circle key={i} cx={c.x} cy={c.y} r="4" fill="var(--accent)" />
+                      ))}
+                      {n > 0 && <text x={coords[0].x} y={H - 4} fill="var(--text-muted)" fontSize="9" textAnchor="start">{fmt(pts[0].date)}</text>}
+                      {n > 1 && <text x={coords[n - 1].x} y={H - 4} fill="var(--text-muted)" fontSize="9" textAnchor="end">{fmt(pts[n - 1].date)}</text>}
+                    </svg>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 8 }}>{unit === 'lbs' ? 'lbs' : 'kg'} — {pts.length} session{pts.length !== 1 ? 's' : ''}</div>
+                    {[...historySheet.data].reverse().slice(0, 8).map((p, i) => {
+                      const dispW = p.max_weight_kg == null ? '—' : unit === 'lbs' ? `${Math.round(p.max_weight_kg * 2.20462 * 10) / 10} lbs` : `${p.max_weight_kg} kg`
+                      return (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>{new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                          <span style={{ fontWeight: 600 }}>{p.sets_count} sets · best {dispW}</span>
+                        </div>
+                      )
+                    })}
+                  </>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Exercise picker bottom sheet */}
       {showExPicker && (

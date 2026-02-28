@@ -13,6 +13,8 @@ class Profile(SQLModel, table=True):
     week_start: str = Field(default="monday")  # "monday" or "sunday"
     avatar_color: str = Field(default="#60a5fa")
     ding_enabled: bool = Field(default=True)
+    overload_hints: bool = Field(default=True)
+    plate_calculator: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

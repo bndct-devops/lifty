@@ -80,9 +80,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 
 /* Bottom nav */
 .tabs{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);z-index:100;padding-bottom:env(safe-area-inset-bottom)}
-.tabs button{flex:1;padding:10px 4px 8px;border:none;border-top:2px solid transparent;background:transparent;color:var(--text);opacity:0.4;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:color 0.15s, border-color 0.15s, opacity 0.15s;min-width:0}
-.tabs button.active{color:var(--accent);border-top-color:var(--accent);opacity:1}
-.tab-icon{font-size:1.2rem;line-height:1}
+.tabs button{flex:1;padding:10px 4px 8px;border:none;border-top:none;background:transparent;color:var(--text);opacity:0.4;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:color 0.15s,opacity 0.15s;min-width:0}
+.tabs button.active{color:var(--accent);opacity:1}
+.tab-icon{font-size:1.2rem;line-height:1;width:46px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:14px;transition:background 0.2s}
+.tabs button.active .tab-icon{background:color-mix(in srgb,var(--accent) 18%,transparent)}
 .tab-label{font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap}
 
 .content{padding:4px 0}

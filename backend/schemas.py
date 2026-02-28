@@ -17,6 +17,8 @@ class ProfileUpdate(BaseModel):
     week_start: Optional[str] = None
     avatar_color: Optional[str] = None
     ding_enabled: Optional[bool] = None
+    overload_hints: Optional[bool] = None
+    plate_calculator: Optional[bool] = None
 
 
 class ProfileOut(BaseModel):
@@ -28,6 +30,8 @@ class ProfileOut(BaseModel):
     week_start: str
     avatar_color: str
     ding_enabled: bool
+    overload_hints: bool = True
+    plate_calculator: bool = True
     has_pin: bool = False
     created_at: datetime
 

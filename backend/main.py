@@ -36,6 +36,8 @@ def on_startup():
             "ALTER TABLE profile ADD COLUMN week_start TEXT NOT NULL DEFAULT 'monday'",
             "ALTER TABLE profile ADD COLUMN avatar_color TEXT NOT NULL DEFAULT '#60a5fa'",
             "ALTER TABLE profile ADD COLUMN ding_enabled INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE profile ADD COLUMN overload_hints INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE profile ADD COLUMN plate_calculator INTEGER NOT NULL DEFAULT 1",
         ]:
             try:
                 session.exec(text(ddl))
@@ -97,6 +99,7 @@ def _profile_out(p) -> dict:
         'id': p.id, 'name': p.name, 'unit': p.unit, 'theme': p.theme,
         'rest_duration': p.rest_duration, 'week_start': p.week_start,
         'avatar_color': p.avatar_color, 'ding_enabled': p.ding_enabled,
+        'overload_hints': p.overload_hints, 'plate_calculator': p.plate_calculator,
         'has_pin': p.pin_hash is not None, 'created_at': p.created_at,
     }
 
@@ -146,6 +149,10 @@ def update_profile(profile_id: int, data: schemas.ProfileUpdate):
             p.avatar_color = data.avatar_color
         if data.ding_enabled is not None:
             p.ding_enabled = data.ding_enabled
+        if data.overload_hints is not None:
+            p.overload_hints = data.overload_hints
+        if data.plate_calculator is not None:
+            p.plate_calculator = data.plate_calculator
         session.add(p)
         session.commit()
         session.refresh(p)
@@ -539,6 +546,46 @@ def get_exercise_last_sets(exercise_id: int, profile_id: Optional[int] = Query(d
         ).all()
     REQUEST_COUNTER.labels(method="GET", endpoint="/api/exercises/{id}/last_sets", status="200").inc()
     return sets
+
+
+@app.get("/api/exercises/{exercise_id}/history")
+def exercise_history(
+    exercise_id: int,
+    profile_id: Optional[int] = Query(default=None),
+    limit: int = Query(default=30),
+):
+    """Return per-workout history for one exercise (max_weight, e1rm, set count)."""
+    from collections import defaultdict
+    with Session(engine) as session:
+        q = (
+            select(Workout.id, Workout.date, SetEntry.weight, SetEntry.reps)
+            .join(SetEntry, SetEntry.workout_id == Workout.id)
+            .where(SetEntry.exercise_id == exercise_id, Workout.status == "finished")
+        )
+        if profile_id is not None:
+            q = q.where(Workout.profile_id == profile_id)
+        rows = session.exec(q.order_by(Workout.date)).all()
+    by_workout: dict = defaultdict(list)
+    for wid, date, weight, reps in rows:
+        day = date.date().isoformat() if hasattr(date, "date") else str(date)[:10]
+        by_workout[(wid, day)].append((weight, reps))
+    result = []
+    for (wid, day), sets_data in sorted(by_workout.items(), key=lambda x: x[0][1]):
+        weights = [w for w, r in sets_data if w is not None]
+        max_weight = max(weights) if weights else None
+        best_e1rm = None
+        for w, r in sets_data:
+            if w and r and r > 0:
+                e1rm = w * (1 + r / 30)
+                if best_e1rm is None or e1rm > best_e1rm:
+                    best_e1rm = e1rm
+        result.append({
+            "date": day,
+            "max_weight_kg": max_weight,
+            "sets_count": len(sets_data),
+            "e1rm_kg": round(best_e1rm, 2) if best_e1rm else None,
+        })
+    return result[-limit:]
 
 
 @app.patch("/api/exercises/{exercise_id}", response_model=Exercise)

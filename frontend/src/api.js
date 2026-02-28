@@ -213,3 +213,11 @@ export async function getBodyweight(profileId, limit = 90) {
 export async function deleteBodyweightEntry(profileId, entryId) {
   await fetch(base + `/api/profiles/${profileId}/bodyweight/${entryId}`, { method: 'DELETE' })
 }
+
+export async function getExerciseHistory(exerciseId, profileId, limit = 30) {
+  const q = new URLSearchParams()
+  if (profileId != null) q.set('profile_id', profileId)
+  q.set('limit', limit)
+  const res = await fetch(base + `/api/exercises/${exerciseId}/history?${q}`)
+  return res.json()
+}
