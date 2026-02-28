@@ -3,6 +3,11 @@ name: Build & Push Docker Images
 on:
   push:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'Dockerfile'
+      - 'frontend/Dockerfile'
   workflow_dispatch:
 
 env:

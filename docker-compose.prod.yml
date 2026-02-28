@@ -11,7 +11,7 @@ services:
     image: ghcr.io/bndct-devops/lifty-backend:latest
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "3421:8000"
     volumes:
       - /mnt/user/appdata/lifty:/data   # adjust Unraid path as needed
     environment:
@@ -21,6 +21,6 @@ services:
     image: ghcr.io/bndct-devops/lifty-frontend:latest
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - "3420:80"
     depends_on:
       - backend
