@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory } from './api'
-import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, X, Timer, Flag, CheckCircle2, Check, TrendingUp } from 'lucide-react'
+import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, Flag, CheckCircle2, TrendingUp } from 'lucide-react'
 
 // ── Unit helpers (store in kg internally, display in user's unit) ──
 export function fmtWeight(kg, unit) {
@@ -22,8 +22,11 @@ function IconDownload({ size = 15 }) {
 function IconUpload({ size = 15 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
 }
-function IconCheck({ size = 14 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }}><polyline points="20 6 9 17 4 12"/></svg>
+function IconCheck({ size = 14, style = {} }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5, ...style }}><polyline points="20 6 9 17 4 12"/></svg>
+}
+function IconX({ size = 16 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 }
 function IconXCircle({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
@@ -443,7 +446,7 @@ export default function App() {
                   if (r?.id) setWorkouts(ws => [...ws.filter(w => w.id !== r.id), r])
                   setMarkingRestDay(false)
                 }} style={{ width: '100%', padding: '14px', borderRadius: 12, border: '1px dashed var(--border)', background: 'transparent', color: todayRestDay ? 'var(--accent)' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: todayRestDay ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-                  {todayRestDay ? <><Check size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }} />Rest day logged</> : markingRestDay ? 'Logging…' : 'Mark as rest day'}
+                  {todayRestDay ? <><IconCheck size={14} />Rest day logged</> : markingRestDay ? 'Logging…' : 'Mark as rest day'}
                 </button>
               )
             })()}
@@ -781,7 +784,7 @@ export default function App() {
                             <button type="button" onClick={async () => {
                               await deleteBodyweightEntry(activeProfile.id, entry.id)
                               setBwData(d => d.filter(x => x.id !== entry.id))
-                            }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}><X size={14} /></button>
+                            }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}><IconX size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -1064,10 +1067,10 @@ export default function App() {
                 </div>
               </div>
               <button onClick={() => { setShowSettings(false); setPinSettingMode(null) }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><X size={18} /></button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
           }>
-            {/* Scrollable body */}
+            {/* Scrollable body */
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {/* Rename */}
               <div className="card" style={{ margin: 0 }}>
@@ -1581,7 +1584,7 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
             <div style={{ fontWeight: 800, fontSize: '1.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workout.name}</div>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>{dateStr}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)', flexShrink: 0 }}><X size={16} /></button>
+          <button onClick={onClose} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)', flexShrink: 0 }}><IconX size={16} /></button>
         </div>
 
         {/* Stats + donut row */}
@@ -2165,7 +2168,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
           </button>
         )}
         <button onClick={onExit}
-          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><X size={16} /></button>
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><IconX size={16} /></button>
       </div>
 
       {/* Cancel confirmation modal */}
@@ -2292,7 +2295,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                             <span style={{ fontSize: '0.95rem', fontWeight: 600, textAlign: 'center' }}>{dw(s.weight)}</span>
                             <span style={{ fontSize: '0.95rem', fontWeight: 600, textAlign: 'center' }}>{s.reps ?? '—'}</span>
                             <button type="button" onClick={() => onDeleteSet(workout.id, s.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}><X size={15} /></button>
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}><IconX size={15} /></button>
                           </div>
                         )
                       })}
@@ -2322,7 +2325,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                             placeholder="—"
                             style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
                           <button type="button" onClick={handleLogSet} disabled={!reps && !weight}
-                            style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}><Check size={15} /></button>
+                            style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}><IconCheck size={15} style={{ marginRight: 0, display: 'block' }} /></button>
                         </div>
                       )}
                       {/* Plate calculator */}
@@ -2385,7 +2388,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
               <div className="card" style={{ margin: 0, padding: '12px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes</span>
-                  <button type="button" onClick={() => setNoteOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}><X size={15} /></button>
+                  <button type="button" onClick={() => setNoteOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}><IconX size={15} /></button>
                 </div>
                 <textarea
                   value={noteText}
@@ -2449,7 +2452,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
               <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>{historySheet.name}</span>
               <button onClick={() => setHistorySheet(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><X size={18} /></button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 32px' }}>
               {historyLoading ? (
@@ -2525,7 +2528,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
               <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Add Exercise</span>
               <button onClick={() => { setShowExPicker(false); setExSearch('') }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><X size={18} /></button>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
             <div style={{ padding: '0 16px 8px' }}>
               <input autoFocus placeholder="Search exercises…" value={exSearch}
