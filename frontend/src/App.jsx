@@ -14,6 +14,20 @@ export function parseWeight(val, unit) {
   return n
 }
 
+// Flat inline SVG icons
+function IconDownload({ size = 15 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+}
+function IconUpload({ size = 15 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+}
+function IconCheck({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }}><polyline points="20 6 9 17 4 12"/></svg>
+}
+function IconXCircle({ size = 14 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+}
+
 const THEMES = [
   { id: 'dark',                   label: 'Dark',       color: '#60a5fa' },
   { id: 'light',                  label: 'Light',      color: '#3b82f6' },
@@ -924,7 +938,7 @@ export default function App() {
               <div className="card" style={{ margin: 0 }}>
                 <p className="section-heading">Export</p>
                 <a href={`/api/profiles/${activeProfile.id}/export.csv`} download="lifty_export.csv" style={{ display: 'block' }}>
-                  <button type="button" style={{ width: '100%' }}>⬇ Export CSV</button>
+                  <button type="button" style={{ width: '100%' }}><IconDownload />Export CSV</button>
                 </a>
               </div>
               {/* Import */}
@@ -934,8 +948,8 @@ export default function App() {
                 {importState && importState !== 'loading' && (
                   <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '0.85rem' }}>
                     {importState.error
-                      ? <span style={{ color: '#e06c75' }}>❌ {importState.error}</span>
-                      : <span style={{ color: 'var(--accent)' }}>✅ Imported {importState.imported_workouts} workout{importState.imported_workouts !== 1 ? 's' : ''} &middot; {importState.imported_sets} sets &middot; {importState.created_exercises} new exercise{importState.created_exercises !== 1 ? 's' : ''}{importState.skipped_workouts > 0 ? ` (${importState.skipped_workouts} skipped)` : ''}</span>
+                      ? <span style={{ color: '#e06c75' }}><IconXCircle size={14} />{importState.error}</span>
+                      : <span style={{ color: 'var(--accent)' }}><IconCheck size={14} />Imported {importState.imported_workouts} workout{importState.imported_workouts !== 1 ? 's' : ''} &middot; {importState.imported_sets} sets &middot; {importState.created_exercises} new exercise{importState.created_exercises !== 1 ? 's' : ''}{importState.skipped_workouts > 0 ? ` (${importState.skipped_workouts} skipped)` : ''}</span>
                     }
                   </div>
                 )}
@@ -964,7 +978,7 @@ export default function App() {
                   <button type="button" style={{ width: '100%', pointerEvents: 'none' }}
                     onClick={e => e.currentTarget.parentElement.querySelector('input').click()}
                     disabled={importState === 'loading'}>
-                    {importState === 'loading' ? 'Importing…' : '⬆ Import Strong CSV'}
+                    {importState === 'loading' ? 'Importing…' : <><IconUpload />Import Strong CSV</>}
                   </button>
                 </label>
               </div>
