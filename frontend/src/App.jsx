@@ -175,7 +175,9 @@ export default function App() {
     setSessionWorkout(started); setTimerStart(utcMs(started.start_time)); setSessionSets([])
   }
   async function handleStartEmptyWorkout() {
-    await handleStartNewWorkout(`Workout ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
+    const h = new Date().getHours()
+    const label = h >= 5 && h < 12 ? 'Morning' : h >= 12 && h < 17 ? 'Afternoon' : h >= 17 && h < 21 ? 'Evening' : 'Late Night'
+    await handleStartNewWorkout(`${label} Workout`)
   }
 
   async function handleStartFromTemplate(templateWorkout) {
