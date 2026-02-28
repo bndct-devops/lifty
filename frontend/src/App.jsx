@@ -1527,7 +1527,7 @@ function ProfileNameEditor({ profile, onSave }) {
 }
 
 
-function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, elapsed, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange }) {
+function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
 
   const [, setTick] = React.useState(0)
