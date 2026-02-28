@@ -10,8 +10,10 @@ services:
   backend:
     image: ghcr.io/bndct-devops/lifty-backend:latest
     restart: unless-stopped
-    ports:
-      - "3421:8000"
+    # No host port binding — backend is only reachable via nginx inside Docker.
+    # Pangolin/Traefik should only expose port 3420 (frontend).
+    expose:
+      - "8000"
     volumes:
       - /mnt/user/appdata/lifty:/data   # adjust Unraid path as needed
     environment:

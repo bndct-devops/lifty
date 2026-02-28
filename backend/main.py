@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, Query, UploadFile, File, Form
+from fastapi import FastAPI, Request, Response, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlmodel import Session, select, text, or_
 from backend.db import engine, create_db_and_tables
@@ -73,7 +73,11 @@ def health():
 
 
 @app.get("/metrics")
-def metrics():
+def metrics(request: Request):
+    # Only accessible from localhost / within Docker network
+    client_ip = request.client.host if request.client else ""
+    if client_ip not in ("127.0.0.1", "::1") and not client_ip.startswith("172."):
+        return Response(status_code=403)
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
@@ -370,7 +374,10 @@ def _guess_equipment(name: str) -> str | None:
 
 @app.post("/api/import/strong")
 async def import_strong(file: UploadFile = File(...), profile_id: int = Form(...)):
-    contents = await file.read()
+    MAX_UPLOAD = 10 * 1024 * 1024  # 10 MB
+    contents = await file.read(MAX_UPLOAD + 1)
+    if len(contents) > MAX_UPLOAD:
+        return Response(status_code=413)
     text_data = contents.decode("utf-8-sig")  # handle BOM if present
     reader = csv.DictReader(io.StringIO(text_data))
 
