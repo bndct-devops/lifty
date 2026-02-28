@@ -10,6 +10,10 @@ on:
       - 'frontend/Dockerfile'
   workflow_dispatch:
 
+concurrency:
+  group: build-push-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   OWNER: bndct-devops
