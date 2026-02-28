@@ -49,6 +49,7 @@ class SetEntry(SQLModel, table=True):
     exercise_id: Optional[int] = Field(default=None, foreign_key="exercise.id")
     reps: Optional[int] = None
     weight: Optional[float] = None
+    order: int = Field(default=0)
     timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
 

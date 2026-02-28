@@ -122,7 +122,7 @@ class SetOut(BaseModel):
     exercise_id: int
     reps: Optional[int]
     weight: Optional[float]
-    timestamp: datetime
+    timestamp: Optional[datetime] = None
     order: Optional[int] = None
 
     class Config:

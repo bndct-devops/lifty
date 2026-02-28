@@ -785,7 +785,7 @@ def get_workout_detail(workout_id: int):
         w = session.get(Workout, workout_id)
         if not w:
             return Response(status_code=404)
-        sets = session.exec(select(SetEntry).where(SetEntry.workout_id == workout_id).order_by(SetEntry.order)).all()
+        sets = session.exec(select(SetEntry).where(SetEntry.workout_id == workout_id).order_by(SetEntry.id)).all()
     REQUEST_COUNTER.labels(method="GET", endpoint="/api/workouts/{id}", status="200").inc()
     return {"workout": _workout_out(w, sets), "sets": sets}
 
