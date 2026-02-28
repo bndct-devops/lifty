@@ -2101,7 +2101,11 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     if (!selectedExId || (!reps && !weight)) return
     const weightKg = weight ? parseWeight(weight, unit) : null
     const newSet = await onAddSet(selectedExId, reps, weightKg)
-    if (newSet) startRestTimer(restDuration)
+    if (newSet) {
+      setWeight('')
+      setReps('')
+      startRestTimer(restDuration)
+    }
   }
 
   const workoutTimer = workout.status === 'finished' && workout.start_time && workout.end_time
