@@ -1315,6 +1315,13 @@ export default function App() {
             </div>
         </BottomSheet>
       )}
+
+      {/* Version badge */}
+      {import.meta.env.VITE_COMMIT_SHA && (
+        <div style={{ position: 'fixed', bottom: 56, right: 8, fontSize: '0.6rem', color: 'var(--text-muted)', opacity: 0.45, pointerEvents: 'none', fontFamily: 'monospace', zIndex: 9999 }}>
+          {String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7)}
+        </div>
+      )}
     </div>
   )
 }
