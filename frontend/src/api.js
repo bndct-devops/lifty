@@ -113,6 +113,10 @@ export async function deleteWorkout(id) {
   await fetch(base + `/api/workouts/${id}`, { method: 'DELETE' })
 }
 
+export async function deleteAllWorkouts(profileId) {
+  await fetch(base + `/api/profiles/${profileId}/workouts`, { method: 'DELETE' })
+}
+
 export async function addSet(workoutId, payload) {
   const res = await fetch(base + `/api/workouts/${workoutId}/sets`, {
     method: 'POST',

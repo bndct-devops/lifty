@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay } from './api'
+import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay } from './api'
 
 // ── Unit helpers (store in kg internally, display in user's unit) ──
 export function fmtWeight(kg, unit) {
@@ -857,16 +857,8 @@ export default function App() {
 
       {/* Settings bottom sheet */}
       {showSettings && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
-          onClick={() => setShowSettings(false)}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}
-            onClick={e => e.stopPropagation()}>
-            {/* Drag handle */}
-            <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
-            </div>
-            {/* Header */}
+        <BottomSheet onClose={() => setShowSettings(false)} maxHeight="88vh"
+          dragZoneContent={
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1.1rem' }}>
@@ -880,6 +872,7 @@ export default function App() {
               <button onClick={() => setShowSettings(false)}
                 style={{ background: 'none', border: 'none', fontSize: '1.1rem', cursor: 'pointer', color: 'var(--muted)', padding: 4 }}>✕</button>
             </div>
+          }>
             {/* Scrollable body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {/* Rename */}
@@ -983,10 +976,125 @@ export default function App() {
                   setShowSettings(false)
                 }}>Switch Profile</button>
               </div>
+              {/* Danger zone */}
+              <DangerZone profileId={activeProfile.id} onDeleted={async () => {
+                const ws = await listWorkouts(activeProfile.id)
+                setWorkouts(ws)
+                setPrsLoaded(false)
+              }} />
             </div>
-          </div>
-        </div>
+        </BottomSheet>
       )}
+    </div>
+  )
+}
+
+// Reusable bottom sheet with swipe-to-dismiss and body scroll lock
+function BottomSheet({ onClose, maxHeight = '90vh', zIndex = 100, dragZoneContent, children }) {
+  const sheetRef = React.useRef(null)
+  const handleRef = React.useRef(null)
+  const dragRef = React.useRef({ startY: 0, dragging: false, currentY: 0 })
+  const [dragY, setDragY] = React.useState(0)
+
+  // Lock body scroll
+  React.useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  // Swipe-to-dismiss on drag zone
+  React.useEffect(() => {
+    const handle = handleRef.current
+    if (!handle) return
+    function onTouchStart(e) {
+      dragRef.current = { startY: e.touches[0].clientY, dragging: true, currentY: 0 }
+    }
+    function onTouchMove(e) {
+      if (!dragRef.current.dragging) return
+      const dy = e.touches[0].clientY - dragRef.current.startY
+      if (dy > 0) { e.preventDefault(); dragRef.current.currentY = dy; setDragY(dy) }
+    }
+    function onTouchEnd() {
+      if (!dragRef.current.dragging) return
+      dragRef.current.dragging = false
+      const dy = dragRef.current.currentY
+      setDragY(0)
+      if (dy > 80) onClose()
+    }
+    handle.addEventListener('touchstart', onTouchStart, { passive: true })
+    handle.addEventListener('touchmove', onTouchMove, { passive: false })
+    handle.addEventListener('touchend', onTouchEnd, { passive: true })
+    return () => {
+      handle.removeEventListener('touchstart', onTouchStart)
+      handle.removeEventListener('touchmove', onTouchMove)
+      handle.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [onClose])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+      onClick={onClose}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div ref={sheetRef}
+        style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight, display: 'flex', flexDirection: 'column', transform: `translateY(${dragY}px)`, transition: dragY === 0 ? 'transform 0.25s ease' : 'none' }}
+        onClick={e => e.stopPropagation()}>
+        {/* Drag zone: pill + optional extra content (e.g. header, stats) */}
+        <div ref={handleRef} style={{ touchAction: 'none' }}>
+          <div style={{ textAlign: 'center', padding: '14px 0 0', cursor: 'grab' }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
+          </div>
+          {dragZoneContent}
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function DangerZone({ profileId, onDeleted }) {
+  const [confirmText, setConfirmText] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [done, setDone] = React.useState(false)
+  const ready = confirmText === 'confirm'
+
+  async function handleDelete() {
+    if (!ready || busy) return
+    setBusy(true)
+    try {
+      await deleteAllWorkouts(profileId)
+      setConfirmText('')
+      setDone(true)
+      await onDeleted()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ margin: 0, border: '1px solid rgba(224,108,117,0.35)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p className="section-heading" style={{ color: '#e06c75', margin: 0 }}>Danger Zone</p>
+      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        Permanently delete all workouts for this profile. Useful before re-importing. This cannot be undone.
+      </p>
+      {done
+        ? <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--accent)' }}>✅ All workouts deleted.</p>
+        : <>
+            <input
+              value={confirmText}
+              onChange={e => { setConfirmText(e.target.value); setDone(false) }}
+              placeholder='Type "confirm" to enable'
+              style={{ margin: 0 }}
+            />
+            <button
+              type="button"
+              disabled={!ready || busy}
+              onClick={handleDelete}
+              style={{ width: '100%', background: ready ? '#e06c75' : 'var(--bg-secondary)', color: ready ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, cursor: ready ? 'pointer' : 'not-allowed', opacity: busy ? 0.6 : 1, fontFamily: 'inherit', fontSize: '1rem', transition: 'background 0.15s' }}>
+              {busy ? 'Deleting…' : '🗑 Delete All Workouts'}
+            </button>
+          </>
+      }
     </div>
   )
 }
@@ -1142,35 +1250,9 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
     return <path key={part} d={path} fill={COLORS[i % COLORS.length]} />
   }) : null
 
-  const dragRef = React.useRef({ startY: 0, dragging: false })
-  const [dragY, setDragY] = React.useState(0)
-
-  function onTouchStart(e) {
-    dragRef.current = { startY: e.touches[0].clientY, dragging: true }
-    setDragY(0)
-  }
-  function onTouchMove(e) {
-    if (!dragRef.current.dragging) return
-    const dy = e.touches[0].clientY - dragRef.current.startY
-    if (dy > 0) setDragY(dy)
-  }
-  function onTouchEnd() {
-    dragRef.current.dragging = false
-    if (dragY > 80) { setDragY(0); onClose() }
-    else setDragY(0)
-  }
-
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
-      onClick={onClose}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-      <div style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column', transform: `translateY(${dragY}px)`, transition: dragY === 0 ? 'transform 0.25s ease' : 'none' }}
-        onClick={e => e.stopPropagation()}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-        {/* Handle */}
-        <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
-        </div>
+    <BottomSheet onClose={onClose} maxHeight="90vh" zIndex={300}
+      dragZoneContent={<>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 18px 14px' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1217,6 +1299,7 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
             ))}
           </div>
         )}
+      </>}>
 
         {/* Notes */}
         {workout.notes && (
@@ -1252,8 +1335,7 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose }) {
             )
           })}
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }
 
@@ -1719,7 +1801,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                   onBlur={() => onSaveNotes?.(workout.id, noteText)}
                   placeholder="Write a note… **bold**, *italic*, `code`, ## headings, - bullets"
                   rows={4}
-                  style={{ width: '100%', resize: 'vertical', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '0.88rem', lineHeight: 1.55, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
+                  style={{ width: '100%', resize: 'vertical', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '16px', lineHeight: 1.55, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none' }}
                 />
                 {noteText && <div style={{ marginTop: 8 }}><MiniMarkdown text={noteText} /></div>}
               </div>

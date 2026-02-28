@@ -294,6 +294,8 @@ async def import_strong(file: UploadFile = File(...), profile_id: int = Form(...
 
             for order, row in enumerate(rows, 1):
                 ex_name = row['Exercise Name'].strip()
+                if not ex_name:
+                    continue  # skip rest timer rows and other blanks
                 ex_key = ex_name.lower()
                 if ex_key not in ex_cache:
                     body_part = _STRONG_BODY_PART.get(ex_key)
@@ -310,6 +312,10 @@ async def import_strong(file: UploadFile = File(...), profile_id: int = Form(...
                     reps = int(float(row.get('Reps') or 0)) or None
                 except (ValueError, TypeError):
                     weight, reps = None, None
+
+                # Skip rows with no meaningful data (rest timers, blank placeholders)
+                if weight is None and reps is None:
+                    continue
 
                 s = SetEntry(workout_id=w.id, exercise_id=ex_cache[ex_key],
                              weight=weight, reps=reps, order=order)
@@ -549,6 +555,18 @@ def update_workout(workout_id: int, payload: schemas.WorkoutUpdate):
         session.refresh(w)
         sets = session.exec(select(SetEntry).where(SetEntry.workout_id == workout_id)).all()
     return _workout_out(w, sets)
+
+
+@app.delete("/api/profiles/{profile_id}/workouts", status_code=204)
+def delete_all_workouts(profile_id: int):
+    with Session(engine) as session:
+        workouts = session.exec(select(Workout).where(Workout.profile_id == profile_id)).all()
+        for w in workouts:
+            for s in session.exec(select(SetEntry).where(SetEntry.workout_id == w.id)).all():
+                session.delete(s)
+            session.delete(w)
+        session.commit()
+    return Response(status_code=204)
 
 
 @app.delete("/api/workouts/{workout_id}", status_code=204)
