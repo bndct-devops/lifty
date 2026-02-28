@@ -1564,6 +1564,23 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   const [restRunning, setRestRunning] = React.useState(false)
   const restEndRef = React.useRef(null)
 
+  function scheduleSwNotif(delay) {
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SCHEDULE_NOTIFICATION',
+        id: 'rest-timer',
+        delay,
+        title: 'lifty',
+        body: 'Rest done — time to lift! 💪',
+      })
+    }
+  }
+  function cancelSwNotif() {
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'CANCEL_NOTIFICATION', id: 'rest-timer' })
+    }
+  }
+
   function startRestTimer(dur) {
     restEndRef.current = Date.now() + dur * 1000
     setRestLeft(dur)
@@ -1571,8 +1588,9 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {})
     }
+    scheduleSwNotif(dur * 1000)
   }
-  function stopRestTimer() { setRestLeft(null); setRestRunning(false) }
+  function stopRestTimer() { setRestLeft(null); setRestRunning(false); cancelSwNotif() }
 
   const exerciseIds = [...new Set(sessionSets.map(s => s.exercise_id))]
   if (selectedExId && !exerciseIds.includes(selectedExId)) exerciseIds.push(selectedExId)
@@ -1618,11 +1636,10 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     if (!restRunning || !restEndRef.current) return
 
     function finish() {
+      // Cancel the SW notification — page handled this finish
+      cancelSwNotif()
       if (dingEnabled) playDing()
       if (navigator.vibrate) navigator.vibrate([300, 100, 300])
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
-        try { new Notification('lifty', { body: 'Rest done — time to lift! 💪', icon: '/favicon.svg', silent: false }) } catch (_) {}
-      }
       setRestLeft(null)
       setRestRunning(false)
     }
