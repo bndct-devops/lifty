@@ -56,6 +56,8 @@ const THEMES = [
   { id: 'catppuccin-latte',       label: 'Latte',      color: '#8839ef' },
 ]
 
+const AVATAR_COLORS = ['#F9A8C9','#60a5fa','#cba6f7','#98c379','#e5c07b','#e06c75','#56b6c2','#abb2bf']
+
 export default function App() {
   const [exercises, setExercises] = useState([])
   const [workouts, setWorkouts] = useState([])
@@ -268,7 +270,9 @@ export default function App() {
 
   // Home screen derived data
   const todayKey = dateKey(new Date())
-  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay()); weekStart.setHours(0, 0, 0, 0)
+  const _wday = new Date().getDay() // 0=Sun,1=Mon,...
+  const _weekOff = (activeProfile.week_start || 'monday') === 'monday' ? (_wday + 6) % 7 : _wday
+  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - _weekOff); weekStart.setHours(0, 0, 0, 0)
   const thisWeekWorkouts = workouts.filter(w => w.status === 'finished' && parseDate(w.date) >= weekStart)
   const thisWeekSets = thisWeekWorkouts.reduce((s, w) => s + (w.set_count || 0), 0)
   const finishedDates = new Set(workouts.filter(w => w.status === 'finished').map(w => dateKey(parseDate(w.date))))
@@ -349,6 +353,12 @@ export default function App() {
         }}
         elapsed={elapsed}
         unit={activeProfile.unit || 'kg'}
+        restDuration={activeProfile.rest_duration || 90}
+        dingEnabled={activeProfile.ding_enabled !== false}
+        onRestDurationChange={async d => {
+          const updated = await updateProfile(activeProfile.id, { rest_duration: d })
+          setActiveProfile(prev => ({ ...prev, rest_duration: updated.rest_duration }))
+        }}
       />
     )
   }
@@ -358,7 +368,7 @@ export default function App() {
       <header className="top">
         <h1>lifty</h1>
         <button type="button" onClick={() => setShowSettings(true)}
-          style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1rem', flexShrink: 0, fontFamily: 'inherit' }}>
+          style={{ width: 36, height: 36, borderRadius: '50%', background: activeProfile.avatar_color || 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1rem', flexShrink: 0, fontFamily: 'inherit' }}>
           {activeProfile.name.charAt(0).toUpperCase()}
         </button>
       </header>
@@ -894,7 +904,7 @@ export default function App() {
           dragZoneContent={
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1.1rem' }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: activeProfile.avatar_color || 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1.1rem' }}>
                   {activeProfile.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
@@ -951,6 +961,64 @@ export default function App() {
                       <span style={{ fontSize: '0.72rem', color: 'var(--muted)', textAlign: 'center' }}>{t.label}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+              {/* Avatar colour */}
+              <div className="card" style={{ margin: 0 }}>
+                <p className="section-heading">Avatar Colour</p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  {AVATAR_COLORS.map(c => (
+                    <button key={c} type="button" onClick={async () => {
+                      if (activeProfile.avatar_color === c) return
+                      const updated = await updateProfile(activeProfile.id, { avatar_color: c })
+                      setActiveProfile(prev => ({ ...prev, avatar_color: updated.avatar_color }))
+                    }} style={{ width: 32, height: 32, borderRadius: '50%', background: c, border: activeProfile.avatar_color === c ? '3px solid var(--text)' : '3px solid transparent', cursor: 'pointer', padding: 0, outline: 'none' }} />
+                  ))}
+                </div>
+              </div>
+              {/* Week start */}
+              <div className="card" style={{ margin: 0 }}>
+                <p className="section-heading">Week Starts On</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[['monday','Monday'],['sunday','Sunday']].map(([val, label]) => (
+                    <button key={val} type="button"
+                      className={activeProfile.week_start === val ? 'primary' : ''}
+                      style={{ flex: 1 }}
+                      onClick={async () => {
+                        if (activeProfile.week_start === val) return
+                        const updated = await updateProfile(activeProfile.id, { week_start: val })
+                        setActiveProfile(prev => ({ ...prev, week_start: updated.week_start }))
+                      }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              {/* Workout */}
+              <div className="card" style={{ margin: 0 }}>
+                <p className="section-heading">Workout</p>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>Default rest duration</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[60, 90, 120, 180].map(d => (
+                      <button key={d} type="button"
+                        className={(activeProfile.rest_duration || 90) === d ? 'primary' : ''}
+                        style={{ flex: 1 }}
+                        onClick={async () => {
+                          if ((activeProfile.rest_duration || 90) === d) return
+                          const updated = await updateProfile(activeProfile.id, { rest_duration: d })
+                          setActiveProfile(prev => ({ ...prev, rest_duration: updated.rest_duration }))
+                        }}>{d}s</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Timer ding sound</span>
+                  <button type="button" onClick={async () => {
+                    const next = !(activeProfile.ding_enabled !== false)
+                    const updated = await updateProfile(activeProfile.id, { ding_enabled: next })
+                    setActiveProfile(prev => ({ ...prev, ding_enabled: updated.ding_enabled }))
+                  }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.ding_enabled !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.ding_enabled !== false ? 'flex-end' : 'flex-start' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                  </button>
                 </div>
               </div>
               {/* Export */}
@@ -1459,7 +1527,7 @@ function ProfileNameEditor({ profile, onSave }) {
 }
 
 
-function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg' }) {
+function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, elapsed, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
 
   const [, setTick] = React.useState(0)
@@ -1491,7 +1559,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   const [reps, setReps] = React.useState('')
   const [weight, setWeight] = React.useState('')
   const [lastSetsByExId, setLastSetsByExId] = React.useState({})
-  const [restDuration, setRestDuration] = React.useState(() => Number(localStorage.getItem('restDuration') || 90))
+  const [restDuration, setRestDuration] = React.useState(propRestDuration)
   const [restLeft, setRestLeft] = React.useState(null)
   const [restRunning, setRestRunning] = React.useState(false)
   const restEndRef = React.useRef(null)
@@ -1550,7 +1618,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     if (!restRunning || !restEndRef.current) return
 
     function finish() {
-      playDing()
+      if (dingEnabled) playDing()
       if (navigator.vibrate) navigator.vibrate([300, 100, 300])
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
         try { new Notification('lifty', { body: 'Rest done — time to lift! 💪', icon: '/favicon.svg', silent: false }) } catch (_) {}
@@ -1584,7 +1652,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     }
   }, [restRunning])
 
-  function saveRestDuration(d) { setRestDuration(d); localStorage.setItem('restDuration', String(d)) }
+  function saveRestDuration(d) { setRestDuration(d); onRestDurationChange?.(d) }
 
   function activateExercise(exId) {
     setSelectedExId(exId)

@@ -13,6 +13,10 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = None
     unit: Optional[str] = None
     theme: Optional[str] = None
+    rest_duration: Optional[int] = None
+    week_start: Optional[str] = None
+    avatar_color: Optional[str] = None
+    ding_enabled: Optional[bool] = None
 
 
 class ProfileOut(BaseModel):
@@ -20,6 +24,10 @@ class ProfileOut(BaseModel):
     name: str
     unit: str
     theme: str
+    rest_duration: int
+    week_start: str
+    avatar_color: str
+    ding_enabled: bool
     created_at: datetime
 
     class Config:

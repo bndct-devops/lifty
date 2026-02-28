@@ -27,6 +27,10 @@ def on_startup():
             "ALTER TABLE workout ADD COLUMN profile_id INTEGER REFERENCES profile(id)",
             "ALTER TABLE workout ADD COLUMN notes TEXT",
             "ALTER TABLE workout ADD COLUMN is_rest_day INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE profile ADD COLUMN rest_duration INTEGER NOT NULL DEFAULT 90",
+            "ALTER TABLE profile ADD COLUMN week_start TEXT NOT NULL DEFAULT 'monday'",
+            "ALTER TABLE profile ADD COLUMN avatar_color TEXT NOT NULL DEFAULT '#60a5fa'",
+            "ALTER TABLE profile ADD COLUMN ding_enabled INTEGER NOT NULL DEFAULT 1",
         ]:
             try:
                 session.exec(text(ddl))
@@ -108,6 +112,14 @@ def update_profile(profile_id: int, data: schemas.ProfileUpdate):
             p.unit = data.unit
         if data.theme is not None:
             p.theme = data.theme
+        if data.rest_duration is not None:
+            p.rest_duration = data.rest_duration
+        if data.week_start is not None and data.week_start in ("monday", "sunday"):
+            p.week_start = data.week_start
+        if data.avatar_color is not None:
+            p.avatar_color = data.avatar_color
+        if data.ding_enabled is not None:
+            p.ding_enabled = data.ding_enabled
         session.add(p)
         session.commit()
         session.refresh(p)

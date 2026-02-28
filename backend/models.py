@@ -9,6 +9,10 @@ class Profile(SQLModel, table=True):
     pin_hash: Optional[str] = None   # reserved for future PIN auth
     unit: str = Field(default="kg")  # "kg" or "lbs"
     theme: str = Field(default="dark")
+    rest_duration: int = Field(default=90)
+    week_start: str = Field(default="monday")  # "monday" or "sunday"
+    avatar_color: str = Field(default="#60a5fa")
+    ding_enabled: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
