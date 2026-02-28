@@ -1653,10 +1653,10 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                             </button>
                             <input type="number" inputMode="decimal" step="0.5" value={weight}
                               onChange={e => setWeight(e.target.value)} placeholder="—"
-                              style={{ textAlign: 'center', padding: '7px 4px', fontSize: '0.95rem', fontWeight: 600, margin: 0 }} />
+                              style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
                             <input type="number" inputMode="numeric" value={reps}
                               onChange={e => setReps(e.target.value)} placeholder="—"
-                              style={{ textAlign: 'center', padding: '7px 4px', fontSize: '0.95rem', fontWeight: 600, margin: 0 }} />
+                              style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
                             <button type="submit" disabled={!reps && !weight}
                               style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '0.9rem', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}>✓</button>
                           </div>
