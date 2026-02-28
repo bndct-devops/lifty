@@ -28,6 +28,25 @@ function IconXCircle({ size = 14 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 5 }}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
 }
 
+// Two-tone bell synthesized via Web Audio (no audio file needed)
+function playDing() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    function tone(freq, t, dur) {
+      const osc = ctx.createOscillator()
+      const g = ctx.createGain()
+      osc.connect(g); g.connect(ctx.destination)
+      osc.type = 'sine'; osc.frequency.value = freq
+      g.gain.setValueAtTime(0, t)
+      g.gain.linearRampToValueAtTime(0.35, t + 0.01)
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur)
+      osc.start(t); osc.stop(t + dur)
+    }
+    tone(1046.5, ctx.currentTime, 1.2)       // C6
+    tone(1318.5, ctx.currentTime + 0.18, 1.0) // E6
+  } catch (_) {}
+}
+
 const THEMES = [
   { id: 'dark',                   label: 'Dark',       color: '#60a5fa' },
   { id: 'light',                  label: 'Light',      color: '#3b82f6' },
@@ -1474,6 +1493,18 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   const [lastSetsByExId, setLastSetsByExId] = React.useState({})
   const [restDuration, setRestDuration] = React.useState(() => Number(localStorage.getItem('restDuration') || 90))
   const [restLeft, setRestLeft] = React.useState(null)
+  const [restRunning, setRestRunning] = React.useState(false)
+  const restEndRef = React.useRef(null)
+
+  function startRestTimer(dur) {
+    restEndRef.current = Date.now() + dur * 1000
+    setRestLeft(dur)
+    setRestRunning(true)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {})
+    }
+  }
+  function stopRestTimer() { setRestLeft(null); setRestRunning(false) }
 
   const exerciseIds = [...new Set(sessionSets.map(s => s.exercise_id))]
   if (selectedExId && !exerciseIds.includes(selectedExId)) exerciseIds.push(selectedExId)
@@ -1516,14 +1547,45 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   }, [exIdsKey])
 
   React.useEffect(() => {
-    if (restLeft === null) return
-    if (restLeft <= 0) {
+    if (!restRunning || !restEndRef.current) return
+    const delay = Math.max(0, restEndRef.current - Date.now())
+    // Fires once at the exact expiry time
+    const dingId = setTimeout(() => {
+      playDing()
       if (navigator.vibrate) navigator.vibrate([300, 100, 300])
-      setRestLeft(null); return
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
+        try { new Notification('lifty', { body: 'Rest done — time to lift! 💪', icon: '/favicon.svg', silent: false }) } catch (_) {}
+      }
+      setRestLeft(null)
+      setRestRunning(false)
+    }, delay)
+    // Tick every 500 ms — reads absolute time so it self-corrects after backgrounding
+    const tickId = setInterval(() => {
+      const left = Math.ceil((restEndRef.current - Date.now()) / 1000)
+      if (left > 0) setRestLeft(left)
+    }, 500)
+    // Catch the case where the browser froze the timers while backgrounded
+    function onVisible() {
+      if (document.visibilityState !== 'visible' || !restEndRef.current) return
+      const left = Math.ceil((restEndRef.current - Date.now()) / 1000)
+      if (left <= 0) {
+        playDing()
+        if (navigator.vibrate) navigator.vibrate([300, 100, 300])
+        setRestLeft(null)
+        setRestRunning(false)
+        clearTimeout(dingId)
+        clearInterval(tickId)
+      } else {
+        setRestLeft(left)
+      }
     }
-    const id = setTimeout(() => setRestLeft(r => r - 1), 1000)
-    return () => clearTimeout(id)
-  }, [restLeft])
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearTimeout(dingId)
+      clearInterval(tickId)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [restRunning])
 
   function saveRestDuration(d) { setRestDuration(d); localStorage.setItem('restDuration', String(d)) }
 
@@ -1584,7 +1646,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     if (!selectedExId || (!reps && !weight)) return
     const weightKg = weight ? parseWeight(weight, unit) : null
     const newSet = await onAddSet(selectedExId, reps, weightKg)
-    if (newSet) setRestLeft(restDuration)
+    if (newSet) startRestTimer(restDuration)
   }
 
   const workoutTimer = workout.status === 'finished' && workout.start_time && workout.end_time
@@ -1668,12 +1730,12 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
           </div>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
             {[60, 90, 120, 180].map(d => (
-              <button key={d} onClick={() => saveRestDuration(d)}
+              <button key={d} onClick={() => { saveRestDuration(d); if (restRunning) startRestTimer(d) }}
                 style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.5)', background: restDuration === d ? '#fff' : 'transparent', color: restDuration === d ? 'var(--accent)' : '#fff', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
                 {d}s
               </button>
             ))}
-            <button onClick={() => setRestLeft(null)}
+            <button onClick={stopRestTimer}
               style={{ padding: '4px 14px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: '#fff', fontSize: '0.8rem', cursor: 'pointer' }}>
               Skip
             </button>
