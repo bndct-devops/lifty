@@ -1,6 +1,8 @@
 # lifty
 
-A self-hosted workout tracker. FastAPI backend, React PWA frontend, SQLite database, deployed via Docker Compose.
+> A self-hosted, privacy-first workout tracker. No accounts, no cloud, no subscriptions — just your data on your own server.
+
+**FastAPI · React PWA · SQLite · Docker Compose**
 
 ---
 
@@ -19,38 +21,59 @@ A self-hosted workout tracker. FastAPI backend, React PWA frontend, SQLite datab
 
 ## Features
 
-- **Multiple profiles** — switch between users on the same instance, each with their own avatar colour, theme, and settings
-- **Global exercise library** — 100+ built-in exercises (barbell, dumbbell, cable, machine, bodyweight, cardio), always present on startup
-- **Custom exercises** — add your own, profile-specific
-- **Active workout view** — log sets with reps + weight, reorder exercises, inline exercise notes
-- **Rest timer** — countdown with configurable duration (60/90/120/180s), Web Audio ding on finish, vibration, background-accurate (stays correct after screen lock)
-- **Workout name editing** — tap the title to rename inline
-- **Rest days** — mark a day as rest from the home screen
-- **History** — full workout log with monthly calendar, per-workout detail sheet, stats, and muscle group breakdown
-- **Progress tab**
-  - PRs per exercise (Epley estimated 1RM), grouped by body part
-  - Weekly/daily volume bar chart (sets or tonnage)
-  - Muscle group donut chart
-  - 26-week activity heatmap
-- **Strong CSV import** — import your existing workout history from the Strong app
-- **CSV export** — export all workouts per profile
-- **Themes** — Dark, Light, Catppuccin Mocha / Macchiato / Frappé / Latte
-- **Per-profile settings** — unit (kg/lbs), theme, avatar colour, week start day (Mon/Sun), default rest duration, rest timer ding toggle
-- **PWA** — installable on iOS and Android, flamingo barbell icon, themed status bar
+### Workouts
+- Start a workout, add exercises on the fly, log sets with weight + reps
+- Previous session's sets shown inline as reference
+- Reorder exercises during a workout
+- Rename workouts, add notes
+- Mark rest days from the home screen
+
+### Rest Timer
+- Configurable duration (60 / 90 / 120 / 180s) saved per profile
+- Web Audio ding + vibration on finish
+- Background-accurate — stays correct after screen lock or tab switch
+- Push notification fires even when the screen is off (Android + iOS PWA)
+
+### Progress & History
+- Full workout log with monthly calendar view
+- Per-workout detail sheet — stats, muscle group breakdown, sets with estimated 1RM
+- PRs per exercise (Epley 1RM), grouped by body part
+- Weekly / daily volume bar chart (sets or tonnage)
+- Muscle group donut chart
+- 26-week activity heatmap
+
+### Profiles & Settings
+- Multiple profiles on a single instance
+- Per-profile: unit (kg / lbs), theme, avatar colour, week start day, rest duration, ding toggle
+- Themes: Dark, Light, Catppuccin Mocha / Macchiato / Frappé / Latte
+
+### Import & Export
+- Strong CSV import — bring in your full workout history
+- CSV export per profile
+
+### PWA
+- Installable on iOS and Android
+- Offline support via service worker
+- Flamingo barbell icon, themed status bar
 
 ---
 
 ## PWA & Service Worker
 
-lifty ships a service worker that provides:
+The service worker provides two things:
 
-- **Offline support** — static assets (JS/CSS/icons) are served from cache after first load; API responses are cached as fallback when offline
-- **Background rest timer notifications** — when a rest timer starts, the SW schedules a push notification for the exact end time. This fires even if the browser tab is suspended or the screen is locked
+| Feature | How it works |
+|---|---|
+| **Offline support** | Static assets cached on first load; API falls back to cached responses when offline |
+| **Background notifications** | Rest timer end time posted to SW on start; SW fires `showNotification` at the right time regardless of whether the page is suspended |
 
-**Platform notes:**
-- **Android** — full support (notifications, offline, install to home screen)
-- **iOS 16.4+** — requires the app to be added to the home screen first (PWA install via Share → Add to Home Screen). Background notifications and offline caching then work as expected
-- **iOS < 16.4 / desktop Safari** — the in-page ding and vibration still fire when the app is visible; background notifications are not supported
+**Platform support:**
+
+| Platform | Offline | Background notification |
+|---|---|---|
+| Android | ✅ | ✅ |
+| iOS 16.4+ (PWA) | ✅ | ✅ — add to home screen first |
+| iOS < 16.4 / desktop | ✅ | ❌ — in-page ding still works when visible |
 
 ---
 
@@ -58,51 +81,50 @@ lifty ships a service worker that provides:
 
 | Layer | Tech |
 |---|---|
-| Backend | FastAPI + SQLModel + SQLite |
+| Backend | FastAPI + SQLModel + SQLite, Python 3.11 |
 | Frontend | React 18 + Vite + plain CSS |
 | Serving | nginx (frontend), uvicorn (backend) |
 | Containers | Docker + Docker Compose |
-| CI | GitHub Actions → ghcr.io |
+| CI | GitHub Actions → `ghcr.io` (amd64 + arm64) |
 
 ---
 
-## Local development
+## Running locally
 
 ```bash
 ./scripts/dev_up.sh
 ```
 
-This builds both containers, waits for the backend to be healthy, and seeds dev data (exercises + ~5 weeks of workouts with progressive overload).
+Builds both containers and seeds the exercise library.
 
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:8000
-- **API docs**: http://localhost:8000/docs
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
 
-Reset the database:
-
+**Reset the database:**
 ```bash
-rm data/lifty.db
-docker compose restart backend
+rm data/lifty.db && docker compose restart backend
 ```
 
 ---
 
-## Deployment (Unraid / any Docker host)
+## Self-hosting
 
-Images are built and pushed to `ghcr.io` automatically on every push to `main`. To deploy:
+Images are built and pushed to `ghcr.io` on every push to `main`.
 
 ```bash
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-The default data path in `docker-compose.prod.yml` is `/mnt/user/appdata/lifty` — adjust to match your host.
+Update the volume path in `docker-compose.prod.yml` to wherever you want the SQLite database stored on your host.
 
-Images:
-- `ghcr.io/bndct-devops/lifty-backend:latest`
-- `ghcr.io/bndct-devops/lifty-frontend:latest`
-
-Both are built for `linux/amd64` and `linux/arm64`.
+```
+ghcr.io/bndct-devops/lifty-backend:latest   # amd64 + arm64
+ghcr.io/bndct-devops/lifty-frontend:latest  # amd64 + arm64
+```
 
 ---
 
@@ -110,25 +132,26 @@ Both are built for `linux/amd64` and `linux/arm64`.
 
 ```
 backend/
-  main.py            # FastAPI app — all endpoints
-  models.py          # SQLModel table definitions
-  schemas.py         # Pydantic request/response types
-  db.py              # engine + create_db_and_tables
-  seed_exercises.py  # built-in exercise library (runs on every startup)
+  main.py              # FastAPI app, all endpoints
+  models.py            # SQLModel table definitions
+  schemas.py           # Pydantic request/response types
+  db.py                # engine + table creation
+  seed_exercises.py    # built-in exercise library (runs on startup)
 frontend/
   public/
-    sw.js            # service worker (offline cache + background notifications)
-    manifest.json    # PWA manifest
-    favicon.svg      # flamingo barbell icon
+    sw.js              # service worker — offline cache + background notifications
+    manifest.json      # PWA manifest
+    favicon.svg        # flamingo barbell icon
   src/
-    App.jsx          # entire frontend (single-component)
-    api.js           # fetch wrappers for all backend endpoints
-    styles.css       # CSS custom properties + layout
-  nginx.conf         # proxies /api/* to backend
+    App.jsx            # entire frontend
+    api.js             # fetch wrappers for all backend endpoints
+    styles.css         # CSS custom properties + layout
+  nginx.conf           # proxies /api/* to backend
 scripts/
-  dev_up.sh          # one-command local dev start
-docker-compose.yml       # local dev (builds from source)
-docker-compose.prod.yml  # production (pulls from ghcr.io)
+  dev_up.sh            # one-command local dev start
+docker-compose.yml         # local dev (builds from source)
+docker-compose.prod.yml    # production (pulls from ghcr.io)
 .github/workflows/
-  build-push.yml     # CI: build multi-arch images, push to ghcr.io
+  build-push.yml       # CI: build multi-arch images, push to ghcr.io
 ```
+
