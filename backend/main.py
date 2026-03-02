@@ -8,8 +8,9 @@ from backend.seed_exercises import seed as seed_exercises
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter
 from typing import List, Optional
 from datetime import datetime, timedelta
-import io, csv, re, hashlib, os as _os, time as _time
+import io, csv, re, hashlib, os as _os, time as _time, secrets as _secrets
 import uvicorn
+from backend import auth as _auth
 
 # ── Rate limiting for profile password verification ──
 _pw_attempts: dict = {}   # profile_id -> {"count": int, "locked_until": float}
@@ -19,6 +20,26 @@ _PW_LOCKOUT_SECS = 30
 app = FastAPI(title="lifty API")
 
 REQUEST_COUNTER = Counter("lifty_requests_total", "Total HTTP requests", ["method", "endpoint", "status"])
+
+# ── Instance-level auth state (populated during startup) ──
+_auth_state: dict = {"enabled": False, "jwt_secret": "dev-only", "password_hash": None}
+
+_UNPROTECTED_PATHS = {"/health", "/metrics", "/api/auth/status", "/api/auth/login"}
+
+
+@app.middleware("http")
+async def _auth_middleware(request: Request, call_next):
+    """Reject unauthenticated requests when instance auth is enabled."""
+    if request.url.path in _UNPROTECTED_PATHS:
+        return await call_next(request)
+    if not _auth_state["enabled"]:
+        return await call_next(request)
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):]
+        if _auth.decode_token(token, _auth_state["jwt_secret"]):
+            return await call_next(request)
+    return JSONResponse({"detail": "Unauthorized"}, status_code=401)
 
 
 @app.on_event("startup")
@@ -47,10 +68,35 @@ def on_startup():
             except Exception:
                 pass  # column already exists
 
+        # ── app_config table (JWT secret + password hash) ──
+        session.exec(text("CREATE TABLE IF NOT EXISTS app_config (key TEXT PRIMARY KEY, value TEXT NOT NULL)"))
+        session.commit()
+
+        # JWT secret: load from DB or generate a new one (persists across restarts)
+        row = session.exec(text("SELECT value FROM app_config WHERE key='jwt_secret'")).first()
+        if row:
+            _jwt_sec = row[0]
+        else:
+            _jwt_sec = _secrets.token_hex(32)
+            session.execute(text("INSERT INTO app_config (key, value) VALUES (:k, :v)"), {"k": "jwt_secret", "v": _jwt_sec})
+            session.commit()
+
+        # Instance password: LIFTY_PASSWORD env var overrides DB on every startup
+        env_pw = _os.environ.get("LIFTY_PASSWORD")
+        if env_pw:
+            pw_hash = _auth.hash_password(env_pw)
+            session.execute(text("INSERT OR REPLACE INTO app_config (key, value) VALUES (:k, :v)"), {"k": "password_hash", "v": pw_hash})
+            session.commit()
+
+        ph_row = session.exec(text("SELECT value FROM app_config WHERE key='password_hash'")).first()
+        _auth_state["enabled"] = ph_row is not None
+        _auth_state["jwt_secret"] = _jwt_sec
+        _auth_state["password_hash"] = ph_row[0] if ph_row else None
+
         # ── Create default profile if none exists; migrate orphaned workouts ──
         existing_profile = session.exec(select(Profile)).first()
         if not existing_profile:
-            profile = Profile(name="benedict", unit="kg", theme="dark")
+            profile = Profile(name="Me", unit="kg", theme="dark")
             session.add(profile)
             session.commit()
             session.refresh(profile)
@@ -63,6 +109,56 @@ def on_startup():
 
     # ── Seed built-in global exercises (idempotent) ──
     seed_exercises()
+
+
+# ─────────────────────────────────────────────
+# Utility
+# ─────────────────────────────────────────────
+
+# ─────────────────────────────────────────────
+# Auth
+# ─────────────────────────────────────────────
+
+@app.get("/api/auth/status")
+def auth_status():
+    """Public: returns whether instance-level auth is enabled."""
+    return {"auth_enabled": _auth_state["enabled"]}
+
+
+@app.post("/api/auth/login")
+async def auth_login(request: Request):
+    """Public: exchange the instance password for a JWT."""
+    body = await request.json()
+    password = body.get("password", "")
+    if not _auth_state["enabled"]:
+        return JSONResponse({"detail": "Auth is not enabled on this instance"}, status_code=400)
+    if not _auth.verify_password(password, _auth_state["password_hash"]):
+        return JSONResponse({"detail": "Incorrect password"}, status_code=401)
+    token = _auth.create_access_token(_auth_state["jwt_secret"])
+    return {"token": token}
+
+
+@app.post("/api/auth/change-password")
+async def auth_change_password(request: Request):
+    """Protected: change the instance password. Requires a valid JWT."""
+    if not _auth_state["enabled"]:
+        return JSONResponse({"detail": "Auth is not enabled"}, status_code=400)
+    body = await request.json()
+    current_pw = body.get("current_password", "")
+    new_pw = body.get("new_password", "")
+    if not new_pw or len(new_pw) < 4:
+        return JSONResponse({"detail": "New password must be at least 4 characters"}, status_code=422)
+    if not _auth.verify_password(current_pw, _auth_state["password_hash"]):
+        return JSONResponse({"detail": "Current password is incorrect"}, status_code=401)
+    new_hash = _auth.hash_password(new_pw)
+    with Session(engine) as session:
+        session.execute(
+            text("INSERT OR REPLACE INTO app_config (key, value) VALUES (:k, :v)"),
+            {"k": "password_hash", "v": new_hash},
+        )
+        session.commit()
+    _auth_state["password_hash"] = new_hash
+    return {"token": _auth.create_access_token(_auth_state["jwt_secret"])}
 
 
 # ─────────────────────────────────────────────
@@ -618,6 +714,25 @@ def update_exercise(exercise_id: int, ex_update: schemas.ExerciseUpdate):
         session.refresh(ex)
     REQUEST_COUNTER.labels(method="PATCH", endpoint="/api/exercises/{id}", status="200").inc()
     return ex
+
+
+@app.delete("/api/exercises/{exercise_id}", status_code=204)
+def delete_exercise(exercise_id: int):
+    with Session(engine) as session:
+        ex = session.get(Exercise, exercise_id)
+        if not ex:
+            return Response(status_code=404)
+        if ex.profile_id is None:
+            # Global/seeded exercises cannot be deleted
+            return Response(status_code=403)
+        # Cascade-delete all set entries that reference this exercise
+        sets = session.exec(select(SetEntry).where(SetEntry.exercise_id == exercise_id)).all()
+        for s in sets:
+            session.delete(s)
+        session.delete(ex)
+        session.commit()
+    REQUEST_COUNTER.labels(method="DELETE", endpoint="/api/exercises/{id}", status="204").inc()
+    return Response(status_code=204)
 
 
 # ─────────────────────────────────────────────

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
-import { listExercises, createExercise, updateExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory } from './api'
-import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, Flag, CheckCircle2, TrendingUp } from 'lucide-react'
+import React, { useEffect, useState, useTransition } from 'react'
+import { listExercises, createExercise, updateExercise, deleteExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory, authStatus, authLogin, authChangePassword } from './api'
+import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, Flag, CheckCircle2, TrendingUp, Check, Flame, Trophy } from 'lucide-react'
 
 // ── Unit helpers (store in kg internally, display in user's unit) ──
 export function fmtWeight(kg, unit) {
@@ -52,12 +52,18 @@ function playDing() {
 }
 
 const THEMES = [
-  { id: 'dark',                   label: 'Dark',       color: '#60a5fa' },
-  { id: 'light',                  label: 'Light',      color: '#3b82f6' },
-  { id: 'catppuccin-mocha',       label: 'Mocha',      color: '#cba6f7' },
-  { id: 'catppuccin-macchiato',   label: 'Macchiato',  color: '#c6a0f6' },
-  { id: 'catppuccin-frappe',      label: 'Frappé',     color: '#ca9ee6' },
-  { id: 'catppuccin-latte',       label: 'Latte',      color: '#8839ef' },
+  { id: 'dark',                 label: 'Dark',         color: '#60a5fa' },
+  { id: 'light',                label: 'Light',        color: '#3b82f6' },
+  { id: 'amoled',               label: 'AMOLED',       color: '#1a1a1a' },
+  { id: 'tokyo-night',          label: 'Tokyo Night',  color: '#7aa2f7' },
+  { id: 'dracula',              label: 'Dracula',      color: '#bd93f9' },
+  { id: 'nord',                 label: 'Nord',         color: '#88c0d0' },
+  { id: 'gruvbox',              label: 'Gruvbox',      color: '#d79921' },
+  { id: 'rose-pine',            label: 'Rosé Pine',    color: '#eb6f92' },
+  { id: 'catppuccin-mocha',     label: 'Mocha',        color: '#cba6f7' },
+  { id: 'catppuccin-macchiato', label: 'Macchiato',    color: '#c6a0f6' },
+  { id: 'catppuccin-frappe',    label: 'Frappé',       color: '#ca9ee6' },
+  { id: 'catppuccin-latte',     label: 'Latte',        color: '#8839ef' },
 ]
 
 const AVATAR_COLORS = ['#F9A8C9','#60a5fa','#cba6f7','#98c379','#e5c07b','#e06c75','#56b6c2','#abb2bf']
@@ -66,7 +72,19 @@ export default function App() {
   const [exercises, setExercises] = useState([])
   const [workouts, setWorkouts] = useState([])
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'home')
-  const setTab = t => { setActiveTab(t); localStorage.setItem('activeTab', t) }
+  const [animationsEnabled, setAnimationsEnabled] = useState(() => localStorage.getItem('animations') !== 'false')
+  const [liquidGlass, setLiquidGlass] = useState(() => localStorage.getItem('liquidGlass') === 'true')
+  const [navStyle, setNavStyle] = useState(() => localStorage.getItem('navStyle') || 'frosted')
+  const [pendingTab, setPendingTab] = useState(null)
+  const [, startTabTransition] = useTransition()
+  const setTab = t => {
+    localStorage.setItem('activeTab', t)
+    setPendingTab(t)
+    startTabTransition(() => {
+      setActiveTab(t)
+      setPendingTab(null)
+    })
+  }
   const [sessionWorkout, setSessionWorkout] = useState(null)
   const [timerStart, setTimerStart] = useState(null)
   const [elapsed, setElapsed] = useState(0)
@@ -78,18 +96,28 @@ export default function App() {
   const [importState, setImportState] = useState(null) // null | 'loading' | {result}
   const [markingRestDay, setMarkingRestDay] = useState(false)
   const [sessionSets, setSessionSets] = useState([])
+  const [celebrationData, setCelebrationData] = useState(null)
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0)
   const [selectedDate, setSelectedDate] = useState(null)
+
+  // ── Instance auth ──
+  const [authEnabled, setAuthEnabled] = useState(false)
+  const [isAuthed, setIsAuthed] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [lockError, setLockError] = useState('')
+  const [lockPw, setLockPw] = useState('')
+  const [lockLoading, setLockLoading] = useState(false)
+  const [lockShowPw, setLockShowPw] = useState(false)
+  const [pwChangeMode, setPwChangeMode] = useState(false)
+  const [pwChangeCurrent, setPwChangeCurrent] = useState('')
+  const [pwChangeNew, setPwChangeNew] = useState('')
+  const [pwChangeError, setPwChangeError] = useState('')
   const [prs, setPrs] = useState([])
   const [prsLoaded, setPrsLoaded] = useState(false)
-  const [volumeData, setVolumeData] = useState([])      // [{week_start, sets, tonnage_kg}]
-  const [volumeLoaded, setVolumeLoaded] = useState(false)
+  const [volumeCache, setVolumeCache] = useState({})  // keyed by range: 'week' | 4 | 8 | 12 | 26
+  const [muscleCache, setMuscleCache] = useState({})  // keyed by same range keys
   const [volumeMetric, setVolumeMetric] = useState('sets') // 'sets' | 'tonnage'
   const [progressRange, setProgressRange] = useState('week')  // 'week' | 4 | 8 | 12 | 26
-  const [dailyVolumeData, setDailyVolumeData] = useState([])   // [{date,day,is_today,sets,tonnage_kg}]
-  const [dailyVolumeLoaded, setDailyVolumeLoaded] = useState(false)
-  const [muscleData, setMuscleData] = useState([])             // [{body_part, sets, tonnage_kg}]
-  const [muscleLoaded, setMuscleLoaded] = useState(false)
   const [bwData, setBwData] = useState([])                     // [{id, weight_kg, date}]
   const [bwLoaded, setBwLoaded] = useState(false)
   const [bwInput, setBwInput] = useState('')
@@ -105,6 +133,34 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', activeProfile?.theme || 'dark')
   }, [activeProfile?.theme])
+
+  // ── Auth check on mount ──
+  useEffect(() => {
+    authStatus().then(({ auth_enabled }) => {
+      setAuthEnabled(auth_enabled)
+      if (!auth_enabled) {
+        setIsAuthed(true)
+      } else {
+        // Optimistic: trust stored token; 401 listener will catch expired ones
+        setIsAuthed(!!localStorage.getItem('liftyToken'))
+      }
+      setAuthChecked(true)
+    }).catch(() => {
+      // Server unreachable — proceed without auth so the error surfaces elsewhere
+      setIsAuthed(true)
+      setAuthChecked(true)
+    })
+  }, [])
+
+  // ── Listen for 401s from any API call ──
+  useEffect(() => {
+    const handler = () => {
+      localStorage.removeItem('liftyToken')
+      setIsAuthed(false)
+    }
+    window.addEventListener('lifty:unauthorized', handler)
+    return () => window.removeEventListener('lifty:unauthorized', handler)
+  }, [])
 
   // Load active profile from localStorage on mount
   useEffect(() => {
@@ -134,21 +190,24 @@ export default function App() {
       getPRs(activeProfile.id).then(data => { setPrs(data || []); setPrsLoaded(true) })
     }
     if (activeTab === 'progress' && activeProfile) {
-      if (progressRange === 'week' && !dailyVolumeLoaded) {
-        getDailyVolume(activeProfile.id).then(data => { setDailyVolumeData(data || []); setDailyVolumeLoaded(true) })
-      } else if (progressRange !== 'week' && !volumeLoaded) {
-        getWeeklyVolume(activeProfile.id, progressRange).then(data => { setVolumeData(data || []); setVolumeLoaded(true) })
+      if (volumeCache[progressRange] === undefined) {
+        if (progressRange === 'week') {
+          getDailyVolume(activeProfile.id).then(data => setVolumeCache(c => ({ ...c, week: data || [] })))
+        } else {
+          getWeeklyVolume(activeProfile.id, progressRange).then(data => setVolumeCache(c => ({ ...c, [progressRange]: data || [] })))
+        }
       }
-    }
-    if (activeTab === 'progress' && !muscleLoaded && activeProfile) {
-      getMuscleGroups(activeProfile.id, progressRange === 'week' ? 1 : progressRange).then(data => { setMuscleData(data || []); setMuscleLoaded(true) })
+      if (muscleCache[progressRange] === undefined) {
+        getMuscleGroups(activeProfile.id, progressRange === 'week' ? 1 : progressRange).then(data => setMuscleCache(c => ({ ...c, [progressRange]: data || [] })))
+      }
     }
     if (activeTab === 'progress' && !bwLoaded && activeProfile) {
       getBodyweight(activeProfile.id).then(data => { setBwData(data || []); setBwLoaded(true) })
     }
-  }, [activeTab, prsLoaded, volumeLoaded, dailyVolumeLoaded, muscleLoaded, bwLoaded, progressRange, activeProfile])
+  }, [activeTab, prsLoaded, volumeCache, muscleCache, bwLoaded, progressRange, activeProfile])
 
   const [exSearch, setExSearch] = useState('')
+  const [deleteExercisePending, setDeleteExercisePending] = useState(null) // exercise object awaiting confirm
   const [editingExerciseId, setEditingExerciseId] = useState(null)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
@@ -162,9 +221,8 @@ export default function App() {
     const [ex, wo] = await Promise.all([listExercises(activeProfile.id), listWorkouts(activeProfile.id)])
     setExercises(ex || [])
     setWorkouts(wo || [])
-    setVolumeLoaded(false)
-    setDailyVolumeLoaded(false)
-    setMuscleLoaded(false)
+    setVolumeCache({})
+    setMuscleCache({})
     setBwLoaded(false)
   }
 
@@ -181,10 +239,20 @@ export default function App() {
     await updateExercise(editingExerciseId, { name: editName, description: editDesc, body_part: editBodyPart, equipment: editEquipment })
     cancelEditExercise(); fetchList()
   }
+  async function handleDeleteExercise(ex) {
+    setDeleteExercisePending(ex)
+  }
+  async function confirmDeleteExercise() {
+    if (!deleteExercisePending) return
+    await deleteExercise(deleteExercisePending.id)
+    setDeleteExercisePending(null)
+    fetchList()
+  }
 
   async function handleStartNewWorkout(name) {
     const w = await createWorkout({ name, profile_id: activeProfile?.id })
     const started = await startWorkout(w.id)
+    setWorkouts(ws => [...ws, started])
     setSessionWorkout(started); setTimerStart(utcMs(started.start_time)); setSessionSets([])
   }
   async function handleStartEmptyWorkout() {
@@ -209,18 +277,26 @@ export default function App() {
       const s = await addSet(started.id, { exercise_id: exId, reps: null, weight: null })
       sets.push(s)
     }
+    setWorkouts(ws => [...ws, started])
     setSessionWorkout(started)
     setTimerStart(utcMs(started.start_time))
     setSessionSets(sets)
   }
   async function handleStartWorkout(id) {
     const w = await startWorkout(id)
+    setWorkouts(ws => ws.map(wo => wo.id === w.id ? w : wo))
     setSessionWorkout(w); setTimerStart(utcMs(w.start_time))
     const detail = await getWorkoutDetail(w.id); setSessionSets(detail.sets)
   }
 
   async function handleFinishWorkout(id) {
     try { await finishWorkout(id) } catch (e) { console.error('finish error', e) }
+    const durationSecs = timerStart ? Math.floor((Date.now() - timerStart) / 1000) : 0
+    const totalSets = sessionSets.length
+    const uniqueEx = new Set(sessionSets.map(s => s.exercise_id)).size
+    setCelebrationData({ workoutName: sessionWorkout?.name, durationSecs, totalSets, uniqueEx })
+    setTimeout(() => setCelebrationData(null), 6000)
+    setWorkouts(ws => ws.map(w => w.id === id ? { ...w, status: 'finished', set_count: totalSets } : w))
     setSessionWorkout(null); setTimerStart(null); setSessionSets([])
     setPrsLoaded(false)
     setVolumeLoaded(false)
@@ -232,6 +308,7 @@ export default function App() {
 
   async function handleCancelWorkout(id) {
     try { await deleteWorkout(id) } catch (e) { console.error('cancel error', e) }
+    setWorkouts(ws => ws.filter(w => w.id !== id))
     setSessionWorkout(null); setTimerStart(null); setSessionSets([])
     fetchList()
   }
@@ -321,6 +398,13 @@ export default function App() {
   const lastWorkout = [...workouts].sort((a, b) => new Date(b.date) - new Date(a.date)).find(w => w.status === 'finished')
   const inProgress = workouts.find(w => w.status === 'in_progress')
 
+  // Seed top-level timer from persisted start_time so the banner timer works after a page refresh
+  useEffect(() => {
+    if (inProgress?.start_time && !timerStart) {
+      setTimerStart(utcMs(inProgress.start_time))
+    }
+  }, [inProgress?.start_time])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // Progress tab: PR grouping
   const BODY_PART_ORDER = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Full Body', 'Cardio', 'Other']
   const prsByPart = prs.reduce((acc, pr) => {
@@ -336,6 +420,63 @@ export default function App() {
   const fmtTonnage = (kg, unit) => {
     const v = unit === 'lbs' ? Math.round(kg * 2.20462) : Math.round(kg)
     return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)
+  }
+
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)' }}>
+        Loading…
+      </div>
+    )
+  }
+
+  if (authEnabled && !isAuthed) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)', padding: 24 }}>
+        <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'color-mix(in srgb, var(--accent) 15%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, animation: 'flamePulse 3s ease-in-out infinite' }}>
+            <Lock size={32} style={{ color: 'var(--accent)' }} strokeWidth={1.8} />
+          </div>
+          <h1 style={{ fontWeight: 900, fontSize: '2rem', margin: '0 0 6px', letterSpacing: '-0.03em', animation: 'celebrationPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>lifty</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 28px' }}>Enter password to continue</p>
+          <div style={{ width: '100%', position: 'relative', marginBottom: lockError ? 8 : 20 }}>
+            <input
+              type={lockShowPw ? 'text' : 'password'}
+              autoComplete="current-password"
+              placeholder="Password"
+              value={lockPw}
+              onChange={e => { setLockPw(e.target.value); setLockError('') }}
+              onKeyDown={e => e.key === 'Enter' && !lockLoading && (async () => {
+                setLockLoading(true)
+                const res = await authLogin(lockPw)
+                setLockLoading(false)
+                if (res.token) { localStorage.setItem('liftyToken', res.token); setIsAuthed(true); setLockPw('') }
+                else setLockError(res.detail || 'Incorrect password')
+              })()}
+              style={{ width: '100%', padding: '14px 44px 14px 16px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: '1rem', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
+            />
+            <button type="button" onClick={() => setLockShowPw(v => !v)}
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+              {lockShowPw ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+          {lockError && <div style={{ color: 'var(--danger)', fontSize: '0.82rem', marginBottom: 12, alignSelf: 'flex-start' }}>{lockError}</div>}
+          <button
+            className="primary"
+            style={{ width: '100%', padding: '14px 0', borderRadius: 12, fontSize: '1rem', fontWeight: 700, opacity: lockLoading ? 0.6 : 1 }}
+            disabled={lockLoading}
+            onClick={async () => {
+              setLockLoading(true)
+              const res = await authLogin(lockPw)
+              setLockLoading(false)
+              if (res.token) { localStorage.setItem('liftyToken', res.token); setIsAuthed(true); setLockPw('') }
+              else setLockError(res.detail || 'Incorrect password')
+            }}>
+            {lockLoading ? 'Checking…' : 'Unlock'}
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (profileLoading) {
@@ -372,7 +513,7 @@ export default function App() {
         sessionSets={sessionSets}
         onFinish={handleFinishWorkout}
         onCancel={handleCancelWorkout}
-        onExit={() => { setSessionWorkout(null); setTimerStart(null); setSessionSets([]) }}
+        onExit={() => { setSessionWorkout(null); setSessionSets([]) }}
         onAddSet={handleAddSet}
         onDeleteSet={handleDeleteSet}
         onRename={async (id, name) => {
@@ -395,20 +536,45 @@ export default function App() {
         dingEnabled={activeProfile.ding_enabled !== false}
         overloadHints={activeProfile.overload_hints !== false}
         plateCalc={activeProfile.plate_calculator !== false}
+        prs={prs}
         onRestDurationChange={async d => {
           const updated = await updateProfile(activeProfile.id, { rest_duration: d })
           setActiveProfile(prev => ({ ...prev, rest_duration: updated.rest_duration }))
         }}
+        liquidGlass={liquidGlass}
+        animationsEnabled={animationsEnabled}
       />
     )
   }
 
   return (
-    <div className="app">
+    <div className={['app', animationsEnabled ? '' : 'no-anim', liquidGlass ? 'liquid-glass' : ''].filter(Boolean).join(' ')}>
+
+      {/* ── Finish celebration overlay ── */}
+      {celebrationData && (
+        <div onClick={() => setCelebrationData(null)}
+          className="glass-overlay"
+          style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div className="glass-panel" style={{ borderRadius: 20, padding: '36px 28px', textAlign: 'center', maxWidth: 340, width: '100%', animation: 'celebrationPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both' }}
+            onClick={e => e.stopPropagation()}>
+            <CheckCircle2 size={52} style={{ color: 'var(--accent)', marginBottom: 14 }} strokeWidth={1.8} />
+            <div style={{ fontWeight: 800, fontSize: '1.4rem', marginBottom: 4 }}>Workout done!</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 24 }}>{celebrationData.workoutName}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginBottom: 24 }}>
+              <div><div style={{ fontWeight: 800, fontSize: '1.6rem', fontVariantNumeric: 'tabular-nums' }}>{Math.floor(celebrationData.durationSecs / 60)}<span style={{ fontSize: '0.9rem', fontWeight: 600 }}>m</span></div><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>duration</div></div>
+              <div><div style={{ fontWeight: 800, fontSize: '1.6rem' }}>{celebrationData.totalSets}</div><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>sets</div></div>
+              <div><div style={{ fontWeight: 800, fontSize: '1.6rem' }}>{celebrationData.uniqueEx}</div><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>exercises</div></div>
+            </div>
+            <button onClick={() => setCelebrationData(null)}
+              style={{ width: '100%', padding: '12px 0', borderRadius: 12, background: 'var(--accent)', color: '#fff', border: 'none', fontWeight: 700, fontSize: '1rem', cursor: 'pointer' }}>Nice!</button>
+          </div>
+        </div>
+      )}
+
       <header className="top">
         <h1>lifty</h1>
         <button type="button" onClick={() => setShowSettings(true)}
-          style={{ width: 36, height: 36, borderRadius: '50%', background: activeProfile.avatar_color || 'var(--accent)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1rem', flexShrink: 0, fontFamily: 'inherit' }}>
+          style={{ width: 36, height: 36, borderRadius: '50%', background: activeProfile.avatar_color || 'var(--accent)', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1rem', flexShrink: 0, fontFamily: 'inherit' }}>
           {activeProfile.name.charAt(0).toUpperCase()}
         </button>
       </header>
@@ -416,20 +582,32 @@ export default function App() {
       <main className="content">
         {/* ─── HOME ─── */}
         {activeTab === 'home' && (
-          <section>
-            {inProgress && (
-              <div className="card" style={{ border: '2px solid var(--accent)' }}>
-                <p className="section-heading" style={{ color: 'var(--accent)' }}>Workout in Progress</p>
-                <div style={{ fontWeight: 600, fontSize: '1.05rem' }}>{inProgress.name}</div>
-                <div className="muted small" style={{ margin: '4px 0 12px' }}>{getWorkoutSummary(inProgress)}</div>
-                <button className="primary" style={{ width: '100%' }} onClick={() => handleOpenWorkout(inProgress.id)}>Continue →</button>
-              </div>
-            )}
+          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
+            {inProgress && (() => {
+              const h = Math.floor(elapsed / 3600)
+              const m = Math.floor((elapsed % 3600) / 60)
+              const s = elapsed % 60
+              const timerStr = h > 0
+                ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+                : `${m}:${String(s).padStart(2,'0')}`
+              const timerColor = elapsed >= 7200 ? 'var(--danger)' : elapsed >= 5400 ? 'var(--warning)' : 'var(--text-muted)'
+              return (
+                <div className="card" style={{ border: '2px solid var(--accent)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <p className="section-heading" style={{ color: 'var(--accent)', margin: 0 }}>Workout in Progress</p>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.9rem', color: timerColor, fontWeight: 500, transition: 'color 2s ease' }}>⏱ {timerStr}</span>
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: '1.05rem', marginTop: 8 }}>{inProgress.name}</div>
+                  <div className="muted small" style={{ margin: '4px 0 12px' }}>{(inProgress.unique_exercises_count ?? 0)} ex · {(inProgress.set_count ?? 0)} sets</div>
+                  <button className="primary" style={{ width: '100%' }} onClick={() => handleOpenWorkout(inProgress.id)}>Continue →</button>
+                </div>
+              )
+            })()}
 
             <button className="primary start-btn" onClick={handleStartEmptyWorkout}>Start New Workout</button>
             {workouts.some(w => w.status === 'finished') && (
               <button onClick={() => setShowTemplateSheet(true)}
-                style={{ width: '100%', padding: '14px', borderRadius: 12, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>
+                style={{ width: '100%', padding: '14px', borderRadius: 12, border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)', background: 'color-mix(in srgb, var(--accent) 10%, transparent)', color: 'var(--accent)', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'inherit' }}>
                 Use template
               </button>
             )}
@@ -445,7 +623,7 @@ export default function App() {
                   const r = await markRestDay(activeProfile.id)
                   if (r?.id) setWorkouts(ws => [...ws.filter(w => w.id !== r.id), r])
                   setMarkingRestDay(false)
-                }} style={{ width: '100%', padding: '14px', borderRadius: 12, border: '1px dashed var(--border)', background: 'transparent', color: todayRestDay ? 'var(--accent)' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.9rem', cursor: todayRestDay ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                }} style={{ width: '100%', padding: '14px', borderRadius: 12, border: todayRestDay ? '1px solid color-mix(in srgb, var(--success) 40%, transparent)' : '1px solid color-mix(in srgb, var(--success) 35%, transparent)', background: todayRestDay ? 'color-mix(in srgb, var(--success) 12%, transparent)' : 'color-mix(in srgb, var(--success) 7%, transparent)', color: todayRestDay ? 'var(--success)' : 'color-mix(in srgb, var(--success) 80%, var(--text-muted))', fontWeight: 600, fontSize: '0.9rem', cursor: todayRestDay ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   {todayRestDay ? <><IconCheck size={14} />Rest day logged</> : markingRestDay ? 'Logging…' : 'Mark as rest day'}
                 </button>
               )
@@ -456,7 +634,7 @@ export default function App() {
               <div className="stat-row">
                 <div className="stat-box"><span className="stat-num">{thisWeekWorkouts.length}</span><span className="stat-label">workouts</span></div>
                 <div className="stat-box"><span className="stat-num">{thisWeekSets}</span><span className="stat-label">sets</span></div>
-                <div className="stat-box"><span className="stat-num">{streak}</span><span className="stat-label">day streak</span></div>
+                <div className="stat-box" style={streak >= 3 ? { background: 'color-mix(in srgb, #f97316 12%, var(--bg-secondary))', borderColor: 'color-mix(in srgb, #f97316 30%, transparent)' } : {}}><span className="stat-num" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>{streak >= 3 && <Flame size={17} style={{ color: '#f97316', animation: 'flamePulse 1.2s ease-in-out infinite', flexShrink: 0 }} />}{streak}</span><span className="stat-label">day streak</span></div>
               </div>
             </div>
 
@@ -489,7 +667,7 @@ export default function App() {
 
         {/* ─── EXERCISES ─── */}
         {activeTab === 'exercises' && (
-          <section>
+          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
             {/* Search bar */}
             <div className="card" style={{ paddingBottom: 14 }}>
               <input
@@ -564,9 +742,16 @@ export default function App() {
                                     <div style={{ fontWeight: 600 }}>{ex.name}</div>
                                     {ex.equipment ? <div className="muted small">{ex.equipment}</div> : null}
                                   </div>
-                                  <button type="button" onClick={() => startEditExercise(ex)}
-                                    style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.02em', flexShrink: 0, fontFamily: 'inherit' }}
-                                    aria-label="Edit">Edit</button>
+                                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                                    <button type="button" onClick={() => startEditExercise(ex)}
+                                      style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.02em', fontFamily: 'inherit' }}
+                                      aria-label="Edit">Edit</button>
+                                    {ex.profile_id != null && (
+                                      <button type="button" onClick={() => handleDeleteExercise(ex)}
+                                        style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.02em', fontFamily: 'inherit' }}
+                                        aria-label="Delete">Delete</button>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </li>
@@ -589,7 +774,14 @@ export default function App() {
 
         {/* ─── HISTORY ─── */}
         {activeTab === 'history' && (
-          <section>
+          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
+            {workouts.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+                <div style={{ fontSize: '2.8rem', marginBottom: 14 }}>📋</div>
+                <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 6 }}>No workouts yet</div>
+                <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>Finish your first workout to see it here.</p>
+              </div>
+            ) : (<>
             {/* Calendar filter */}
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -643,8 +835,8 @@ export default function App() {
                 if (list.length === 0) return <p className="muted">{selectedDate ? 'No workouts on this day.' : 'No workouts yet.'}</p>
                 return (
                   <ul className="list">
-                    {list.map(w => (
-                      <li key={w.id} style={{ padding: '14px 0' }}>
+                    {list.map((w, idx) => (
+                      <li key={w.id} style={{ padding: '14px 0', animation: 'slideUp 0.32s ease both', animationDelay: `${Math.min(idx, 10) * 50}ms` }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 700, fontSize: '1rem' }}>{w.name}</div>
@@ -665,12 +857,13 @@ export default function App() {
                 )
               })()}
             </div>
+            </>)}
           </section>
         )}
 
         {/* ─── PROGRESS ─── */}
         {activeTab === 'progress' && (
-          <section>
+          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
             {/* Activity heatmap */}
             <div className="card">
               <p className="section-heading">Activity — last 26 weeks</p>
@@ -699,7 +892,7 @@ export default function App() {
                     const isFuture = d > todayD
                     const isToday = key === todayKey2
                     const entry = isFuture ? null : dayMap[key]
-                    const fill = entry === 'workout' ? 'var(--accent)' : entry === 'rest' ? '#57965c' : 'var(--bg-secondary)'
+                    const fill = entry === 'workout' ? 'var(--accent)' : entry === 'rest' ? 'var(--success)' : 'var(--bg-secondary)'
                     cells.push(<rect key={`${col}-${row}`} x={col*(cellSize+gap)} y={row*(cellSize+gap)} width={cellSize} height={cellSize} rx={2} fill={fill} opacity={isFuture ? 0.15 : 1} stroke={isToday ? 'var(--text)' : 'none'} strokeWidth={1.5} />)
                   }
                 }
@@ -708,7 +901,7 @@ export default function App() {
                     <svg width="100%" viewBox={`0 0 ${totalW} ${totalH}`} style={{ display: 'block' }}>{cells}</svg>
                     <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--accent)' }}/>Workout</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#57965c' }}/>Rest day</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--success)' }}/>Rest day</div>
                     </div>
                   </div>
                 )
@@ -798,7 +991,7 @@ export default function App() {
             <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
               {[['week','Week'],[4,'4w'],[8,'8w'],[12,'12w'],[26,'26w']].map(([w, label]) => (
                 <button key={w} type="button"
-                  onClick={() => { setProgressRange(w); setVolumeLoaded(false); setDailyVolumeLoaded(false); setMuscleLoaded(false) }}
+                  onClick={() => setProgressRange(w)}
                   style={{ padding: '4px 12px', borderRadius: 6, border: progressRange === w ? '2px solid var(--accent)' : '1px solid var(--border)', background: progressRange === w ? 'var(--accent)' : 'transparent', color: progressRange === w ? '#fff' : 'var(--text)', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}>
                   {label}
                 </button>
@@ -823,10 +1016,10 @@ export default function App() {
                   ? (volumeMetric === 'sets' ? 'Sets per day this week' : `Tonnage per day this week (${activeProfile.unit})`)
                   : (volumeMetric === 'sets' ? 'Sets completed per week' : `Total weight moved per week (${activeProfile.unit})`)}
               </p>
-              {(progressRange === 'week' ? !dailyVolumeLoaded : !volumeLoaded) ? (
+              {volumeCache[progressRange] === undefined ? (
                 <p className="muted">Loading…</p>
               ) : (() => {
-                const chartData = progressRange === 'week' ? dailyVolumeData : volumeData
+                const chartData = volumeCache[progressRange]
                 const barW = 36, gap = 6, H = 100
                 const values = chartData.map(w =>
                   volumeMetric === 'sets' ? w.sets
@@ -878,7 +1071,8 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              {!muscleLoaded ? <p className="muted">Loading…</p> : (() => {
+              {muscleCache[progressRange] === undefined ? <p className="muted">Loading…</p> : (() => {
+                const muscleData = muscleCache[progressRange] || []
                 const COLORS = ['#e06c75','#61afef','#98c379','#c678dd','#e5c07b','#56b6c2','#ff9580','#bd93f9','#abb2bf']
                 const cx = 90, cy = 90, R = 76, r = 46
                 const toRad = deg => deg * Math.PI / 180
@@ -966,8 +1160,9 @@ export default function App() {
         )}
       </main>
 
-      <nav className="tabs">
-        <button className={activeTab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>
+      <nav className={`tabs style-${navStyle}`}>
+        <div className="tabs-inner">
+        <button className={(pendingTab ?? activeTab) === 'home' ? 'active' : ''} onClick={() => setTab('home')}>
           <span className="tab-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 10.5L12 3l9 7.5V21a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V10.5z"/>
@@ -976,9 +1171,9 @@ export default function App() {
           </span>
           <span className="tab-label">Home</span>
         </button>
-        <button className={activeTab === 'exercises' ? 'active' : ''} onClick={() => setTab('exercises')}>
+        <button className={(pendingTab ?? activeTab) === 'exercises' ? 'active' : ''} onClick={() => setTab('exercises')}>
           <span className="tab-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="10.5" width="4" height="3" rx="1"/>
               <rect x="18" y="10.5" width="4" height="3" rx="1"/>
               <rect x="6" y="8.5" width="3" height="7" rx="1"/>
@@ -988,7 +1183,7 @@ export default function App() {
           </span>
           <span className="tab-label">Exercises</span>
         </button>
-        <button className={activeTab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
+        <button className={(pendingTab ?? activeTab) === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
           <span className="tab-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="17" rx="2"/>
@@ -1001,7 +1196,7 @@ export default function App() {
           </span>
           <span className="tab-label">History</span>
         </button>
-        <button className={activeTab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')}>
+        <button className={(pendingTab ?? activeTab) === 'progress' ? 'active' : ''} onClick={() => setTab('progress')}>
           <span className="tab-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="12" width="4" height="9" rx="1"/>
@@ -1010,15 +1205,33 @@ export default function App() {
             </svg>
           </span>
           <span className="tab-label">Progress</span>
-        </button>
+          </button>
+        </div>
       </nav>
+      {deleteExercisePending && (
+        <div className="glass-overlay" style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div className="card glass-panel" style={{ width: '100%', maxWidth: 360 }}>
+            <p className="section-heading" style={{ marginTop: 0 }}>Delete exercise?</p>
+            <p className="muted" style={{ marginBottom: 20 }}>"<strong>{deleteExercisePending.name}</strong>" and all its logged history will be permanently deleted. This cannot be undone.</p>
+            <div className="row">
+              <button onClick={() => setDeleteExercisePending(null)} style={{ flex: 1 }}>Cancel</button>
+              <button onClick={confirmDeleteExercise}
+                style={{ flex: 1, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showTemplateSheet && (
         <BottomSheet onClose={() => setShowTemplateSheet(false)} maxHeight="80vh"
           dragZoneContent={
-            <div style={{ padding: '10px 18px 6px' }}>
-              <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Start from template</div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>Pick a past workout to pre-load its exercises</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 18px 6px' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Start from template</div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>Pick a past workout to pre-load its exercises</div>
+              </div>
+              <button onClick={() => setShowTemplateSheet(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
           }>
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 40px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1076,242 +1289,347 @@ export default function App() {
             </div>
           }>
             {/* Scrollable body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Rename */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Name</p>
-                <ProfileNameEditor profile={activeProfile} onSave={async name => {
-                  const updated = await updateProfile(activeProfile.id, { name })
-                  setActiveProfile(prev => ({ ...prev, name: updated.name }))
-                }} />
-              </div>
-              {/* Units */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Units</p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {['kg', 'lbs'].map(u => (
-                    <button key={u} type="button"
-                      className={activeProfile.unit === u ? 'primary' : ''}
-                      style={{ flex: 1 }}
-                      onClick={async () => {
-                        if (activeProfile.unit === u) return
-                        const updated = await updateProfile(activeProfile.id, { unit: u })
-                        setActiveProfile(prev => ({ ...prev, unit: updated.unit }))
-                        setPrsLoaded(false)
-                        // volume labels stay in kg server-side, converted on render — no reload needed
-                      }}>{u}</button>
-                  ))}
-                </div>
-              </div>
-              {/* Theme */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Theme</p>
-                <div className="theme-swatches">
-                  {THEMES.map(t => (
-                    <div key={t.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                      <button type="button"
-                        className={`theme-swatch${activeProfile.theme === t.id ? ' active' : ''}`}
-                        style={{ background: t.color }} title={t.label}
-                        onClick={async () => {
-                          if (activeProfile.theme === t.id) return
-                          const updated = await updateProfile(activeProfile.id, { theme: t.id })
-                          setActiveProfile(prev => ({ ...prev, theme: updated.theme }))
-                        }} />
-                      <span style={{ fontSize: '0.72rem', color: 'var(--muted)', textAlign: 'center' }}>{t.label}</span>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 48px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* ── PROFILE ── */}
+              <div className="settings-section">
+                <div className="settings-section-label">Profile</div>
+                <div className="settings-rows">
+                  <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+                    <div className="settings-row-label" style={{ marginBottom: 8 }}>Name</div>
+                    <ProfileNameEditor profile={activeProfile} onSave={async name => {
+                      const updated = await updateProfile(activeProfile.id, { name })
+                      setActiveProfile(prev => ({ ...prev, name: updated.name }))
+                    }} />
+                  </div>
+                  <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+                    <div className="settings-row-label" style={{ marginBottom: 10 }}>Avatar Colour</div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {AVATAR_COLORS.map(c => (
+                        <button key={c} type="button" onClick={async () => {
+                          if (activeProfile.avatar_color === c) return
+                          const updated = await updateProfile(activeProfile.id, { avatar_color: c })
+                          setActiveProfile(prev => ({ ...prev, avatar_color: updated.avatar_color }))
+                        }} style={{ width: 32, height: 32, borderRadius: '50%', background: c, border: activeProfile.avatar_color === c ? '3px solid var(--text)' : '3px solid transparent', cursor: 'pointer', padding: 0, outline: 'none' }} />
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-              {/* Avatar colour */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Avatar Colour</p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {AVATAR_COLORS.map(c => (
-                    <button key={c} type="button" onClick={async () => {
-                      if (activeProfile.avatar_color === c) return
-                      const updated = await updateProfile(activeProfile.id, { avatar_color: c })
-                      setActiveProfile(prev => ({ ...prev, avatar_color: updated.avatar_color }))
-                    }} style={{ width: 32, height: 32, borderRadius: '50%', background: c, border: activeProfile.avatar_color === c ? '3px solid var(--text)' : '3px solid transparent', cursor: 'pointer', padding: 0, outline: 'none' }} />
-                  ))}
-                </div>
-              </div>
-              {/* Week start */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Week Starts On</p>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {[['monday','Monday'],['sunday','Sunday']].map(([val, label]) => (
-                    <button key={val} type="button"
-                      className={activeProfile.week_start === val ? 'primary' : ''}
-                      style={{ flex: 1 }}
-                      onClick={async () => {
-                        if (activeProfile.week_start === val) return
-                        const updated = await updateProfile(activeProfile.id, { week_start: val })
-                        setActiveProfile(prev => ({ ...prev, week_start: updated.week_start }))
-                      }}>{label}</button>
-                  ))}
-                </div>
-              </div>
-              {/* Workout */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Workout</p>
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>Default rest duration</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {[60, 90, 120, 180].map(d => (
-                      <button key={d} type="button"
-                        className={(activeProfile.rest_duration || 90) === d ? 'primary' : ''}
-                        style={{ flex: 1 }}
-                        onClick={async () => {
-                          if ((activeProfile.rest_duration || 90) === d) return
-                          const updated = await updateProfile(activeProfile.id, { rest_duration: d })
-                          setActiveProfile(prev => ({ ...prev, rest_duration: updated.rest_duration }))
-                        }}>{d}s</button>
-                    ))}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Timer ding sound</span>
-                  <button type="button" onClick={async () => {
-                    const next = !(activeProfile.ding_enabled !== false)
-                    const updated = await updateProfile(activeProfile.id, { ding_enabled: next })
-                    setActiveProfile(prev => ({ ...prev, ding_enabled: updated.ding_enabled }))
-                  }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.ding_enabled !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.ding_enabled !== false ? 'flex-end' : 'flex-start' }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
-                  </button>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                  <div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>Progressive overload hint</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Suggest next weight during workouts</div>
+              </div>
+
+              {/* ── APPEARANCE ── */}
+              <div className="settings-section">
+                <div className="settings-section-label">Appearance</div>
+                <div className="settings-rows">
+                  {/* Theme */}
+                  <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+                    <div className="settings-row-label" style={{ marginBottom: 10 }}>Theme</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                      {THEMES.map(t => (
+                        <div key={t.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                          <button type="button"
+                            className={`theme-swatch${activeProfile.theme === t.id ? ' active' : ''}`}
+                            style={{ background: t.color }} title={t.label}
+                            onClick={async () => {
+                              if (activeProfile.theme === t.id) return
+                              const updated = await updateProfile(activeProfile.id, { theme: t.id })
+                              setActiveProfile(prev => ({ ...prev, theme: updated.theme }))
+                            }} />
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textAlign: 'center', whiteSpace: 'nowrap' }}>{t.label}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <button type="button" onClick={async () => {
-                    const next = !(activeProfile.overload_hints !== false)
-                    const updated = await updateProfile(activeProfile.id, { overload_hints: next })
-                    setActiveProfile(prev => ({ ...prev, overload_hints: updated.overload_hints }))
-                  }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.overload_hints !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.overload_hints !== false ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
-                  </button>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                  <div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>Plate calculator</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>Show plates breakdown for barbell lifts</div>
+                  {/* Nav bar */}
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row-label">Nav Bar</div>
+                      <div className="settings-row-sub">Frosted = labels + blur · Bubble = icons only</div>
+                    </div>
+                    <button type="button" onClick={() => {
+                      const next = navStyle === 'frosted' ? 'bubble' : 'frosted'
+                      localStorage.setItem('navStyle', next)
+                      setNavStyle(next)
+                    }} style={{ padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}>
+                      {navStyle === 'frosted' ? 'Frosted' : 'Bubble'}
+                    </button>
                   </div>
-                  <button type="button" onClick={async () => {
-                    const next = !(activeProfile.plate_calculator !== false)
-                    const updated = await updateProfile(activeProfile.id, { plate_calculator: next })
-                    setActiveProfile(prev => ({ ...prev, plate_calculator: updated.plate_calculator }))
-                  }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.plate_calculator !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.plate_calculator !== false ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
-                  </button>
+                  {/* Animations */}
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row-label">Animations</div>
+                      <div className="settings-row-sub">Transitions, entrance effects, pulses</div>
+                    </div>
+                    <button type="button" onClick={() => {
+                      const next = !animationsEnabled
+                      localStorage.setItem('animations', next ? 'true' : 'false')
+                      setAnimationsEnabled(next)
+                    }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: animationsEnabled ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: animationsEnabled ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                    </button>
+                  </div>
+                  {/* Liquid Glass */}
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row-label">Liquid Glass</div>
+                      <div className="settings-row-sub">Frosted, refractive sheets &amp; modals</div>
+                    </div>
+                    <button type="button" onClick={() => {
+                      const next = !liquidGlass
+                      localStorage.setItem('liquidGlass', next ? 'true' : 'false')
+                      setLiquidGlass(next)
+                    }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: liquidGlass ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: liquidGlass ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                    </button>
+                  </div>
                 </div>
               </div>
-              {/* Profile Password */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Profile Password</p>
-                {activeProfile.has_pin ? (
-                  <div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>Password is set. Required when selecting this profile.</div>
-                    {pinSettingMode === 'change' ? (
-                      <PinSetForm
-                        onSave={async pw => {
-                          const updated = await setPin(activeProfile.id, pw)
-                          setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
-                          setPinSettingMode(null)
-                        }}
-                        onCancel={() => setPinSettingMode(null)}
-                      />
-                    ) : (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button type="button" style={{ flex: 1 }} onClick={() => setPinSettingMode('change')}>Change Password</button>
-                        <button type="button" style={{ flex: 1, color: '#e06c75' }} onClick={async () => {
-                          const updated = await setPin(activeProfile.id, null)
-                          setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
-                        }}>Remove Password</button>
+
+              {/* ── WORKOUT ── */}
+              <div className="settings-section">
+                <div className="settings-section-label">Workout</div>
+                <div className="settings-rows">
+                  {/* Units */}
+                  <div className="settings-row">
+                    <div className="settings-row-label">Units</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {['kg', 'lbs'].map(u => (
+                        <button key={u} type="button"
+                          className={activeProfile.unit === u ? 'primary' : ''}
+                          style={{ padding: '5px 14px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border)', fontFamily: 'inherit', cursor: 'pointer' }}
+                          onClick={async () => {
+                            if (activeProfile.unit === u) return
+                            const updated = await updateProfile(activeProfile.id, { unit: u })
+                            setActiveProfile(prev => ({ ...prev, unit: updated.unit }))
+                            setPrsLoaded(false)
+                          }}>{u}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Week starts */}
+                  <div className="settings-row">
+                    <div className="settings-row-label">Week Starts On</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[['monday','Mon'],['sunday','Sun']].map(([val, label]) => (
+                        <button key={val} type="button"
+                          className={activeProfile.week_start === val ? 'primary' : ''}
+                          style={{ padding: '5px 14px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border)', fontFamily: 'inherit', cursor: 'pointer' }}
+                          onClick={async () => {
+                            if (activeProfile.week_start === val) return
+                            const updated = await updateProfile(activeProfile.id, { week_start: val })
+                            setActiveProfile(prev => ({ ...prev, week_start: updated.week_start }))
+                          }}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Rest duration */}
+                  <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+                    <div className="settings-row-label" style={{ marginBottom: 8 }}>Default Rest Duration</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[60, 90, 120, 180].map(d => (
+                        <button key={d} type="button"
+                          className={(activeProfile.rest_duration || 90) === d ? 'primary' : ''}
+                          style={{ flex: 1, padding: '6px 0', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border)', fontFamily: 'inherit', cursor: 'pointer' }}
+                          onClick={async () => {
+                            if ((activeProfile.rest_duration || 90) === d) return
+                            const updated = await updateProfile(activeProfile.id, { rest_duration: d })
+                            setActiveProfile(prev => ({ ...prev, rest_duration: updated.rest_duration }))
+                          }}>{d}s</button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Ding */}
+                  <div className="settings-row">
+                    <div className="settings-row-label">Timer Ding Sound</div>
+                    <button type="button" onClick={async () => {
+                      const next = !(activeProfile.ding_enabled !== false)
+                      const updated = await updateProfile(activeProfile.id, { ding_enabled: next })
+                      setActiveProfile(prev => ({ ...prev, ding_enabled: updated.ding_enabled }))
+                    }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.ding_enabled !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.ding_enabled !== false ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                    </button>
+                  </div>
+                  {/* Overload hints */}
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row-label">Overload Hints</div>
+                      <div className="settings-row-sub">Suggest next weight during workouts</div>
+                    </div>
+                    <button type="button" onClick={async () => {
+                      const next = !(activeProfile.overload_hints !== false)
+                      const updated = await updateProfile(activeProfile.id, { overload_hints: next })
+                      setActiveProfile(prev => ({ ...prev, overload_hints: updated.overload_hints }))
+                    }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.overload_hints !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.overload_hints !== false ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                    </button>
+                  </div>
+                  {/* Plate calc */}
+                  <div className="settings-row">
+                    <div>
+                      <div className="settings-row-label">Plate Calculator</div>
+                      <div className="settings-row-sub">Plates breakdown for barbell lifts</div>
+                    </div>
+                    <button type="button" onClick={async () => {
+                      const next = !(activeProfile.plate_calculator !== false)
+                      const updated = await updateProfile(activeProfile.id, { plate_calculator: next })
+                      setActiveProfile(prev => ({ ...prev, plate_calculator: updated.plate_calculator }))
+                    }} style={{ width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', padding: 2, background: activeProfile.plate_calculator !== false ? 'var(--accent)' : 'var(--border)', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: activeProfile.plate_calculator !== false ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#fff' }} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── DATA ── */}
+              <div className="settings-section">
+                <div className="settings-section-label">Data</div>
+                <div className="settings-rows">
+                  <div className="settings-row">
+                    <div className="settings-row-label">Export CSV</div>
+                    <a href={`/api/profiles/${activeProfile.id}/export.csv`} download="lifty_export.csv">
+                      <button type="button" style={{ padding: '5px 14px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border)', fontFamily: 'inherit', cursor: 'pointer' }}><IconDownload size={14} /> Export</button>
+                    </a>
+                  </div>
+                  <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div className="settings-row-label">Import from Strong</div>
+                        <div className="settings-row-sub">Already imported workouts are skipped</div>
+                      </div>
+                      <label style={{ margin: 0 }}>
+                        <input type="file" accept=".csv" style={{ display: 'none' }}
+                          onChange={async e => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            e.target.value = ''
+                            setImportState('loading')
+                            try {
+                              const result = await importStrong(file, activeProfile.id)
+                              setImportState(result)
+                              const [ws, exs] = await Promise.all([listWorkouts(activeProfile.id), listExercises(activeProfile.id)])
+                              setWorkouts(ws); setExercises(exs)
+                            } catch { setImportState({ error: 'Import failed. Check the file format.' }) }
+                          }}
+                        />
+                        <button type="button"
+                          style={{ padding: '5px 14px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border)', fontFamily: 'inherit', cursor: 'pointer', pointerEvents: 'none' }}
+                          onClick={e => e.currentTarget.parentElement.querySelector('input').click()}
+                          disabled={importState === 'loading'}>
+                          {importState === 'loading' ? 'Importing…' : <><IconUpload size={14} /> Import</>}
+                        </button>
+                      </label>
+                    </div>
+                    {importState && importState !== 'loading' && (
+                      <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 12px', marginTop: 10, fontSize: '0.82rem' }}>
+                        {importState.error
+                          ? <span style={{ color: 'var(--danger)' }}><IconXCircle size={13} /> {importState.error}</span>
+                          : <span style={{ color: 'var(--accent)' }}><IconCheck size={13} /> Imported {importState.imported_workouts} workout{importState.imported_workouts !== 1 ? 's' : ''} · {importState.imported_sets} sets · {importState.created_exercises} new exercise{importState.created_exercises !== 1 ? 's' : ''}{importState.skipped_workouts > 0 ? ` (${importState.skipped_workouts} skipped)` : ''}</span>
+                        }
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>No password set. Anyone can select this profile.</div>
-                    {pinSettingMode === 'set' ? (
-                      <PinSetForm
-                        onSave={async pw => {
-                          const updated = await setPin(activeProfile.id, pw)
-                          setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
-                          setPinSettingMode(null)
-                        }}
-                        onCancel={() => setPinSettingMode(null)}
-                      />
-                    ) : (
-                      <button type="button" style={{ width: '100%' }} onClick={() => setPinSettingMode('set')}>Set Password</button>
+                </div>
+              </div>
+
+              {/* ── SECURITY ── */}
+              <div className="settings-section">
+                <div className="settings-section-label">Security</div>
+                <div className="settings-rows">
+                  {/* Profile password */}
+                  <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div className="settings-row-label">Profile Password</div>
+                        <div className="settings-row-sub">{activeProfile.has_pin ? 'Password set — required on profile switch' : 'No password — anyone can select this profile'}</div>
+                      </div>
+                      {!pinSettingMode && (
+                        <button type="button"
+                          style={{ padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', flexShrink: 0 }}
+                          onClick={() => setPinSettingMode(activeProfile.has_pin ? 'change' : 'set')}>
+                          {activeProfile.has_pin ? 'Change' : 'Set'}
+                        </button>
+                      )}
+                    </div>
+                    {activeProfile.has_pin && !pinSettingMode && (
+                      <button type="button" style={{ marginTop: 10, color: 'var(--danger)', width: '100%' }} onClick={async () => {
+                        const updated = await setPin(activeProfile.id, null)
+                        setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
+                      }}>Remove Password</button>
+                    )}
+                    {pinSettingMode && (
+                      <div style={{ marginTop: 10 }}>
+                        <PinSetForm
+                          onSave={async pw => {
+                            const updated = await setPin(activeProfile.id, pw)
+                            setActiveProfile(p => ({ ...p, has_pin: updated.has_pin }))
+                            setPinSettingMode(null)
+                          }}
+                          onCancel={() => setPinSettingMode(null)}
+                        />
+                      </div>
                     )}
                   </div>
-                )}
+                  {/* Instance Auth */}
+                  {authEnabled && (
+                    <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div className="settings-row-label">Instance Auth</div>
+                          <div className="settings-row-sub">App-wide password protection</div>
+                        </div>
+                        {!pwChangeMode && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button type="button" style={{ padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }} onClick={() => setPwChangeMode(true)}>Change</button>
+                            <button type="button" style={{ padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--danger)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }} onClick={() => {
+                              localStorage.removeItem('liftyToken')
+                              setIsAuthed(false)
+                              setShowSettings(false)
+                            }}>Sign Out</button>
+                          </div>
+                        )}
+                      </div>
+                      {pwChangeMode && (
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <input type="password" placeholder="Current password" value={pwChangeCurrent} onChange={e => setPwChangeCurrent(e.target.value)} style={{ margin: 0 }} />
+                          <input type="password" placeholder="New password (min 4 chars)" value={pwChangeNew} onChange={e => setPwChangeNew(e.target.value)} style={{ margin: 0 }} />
+                          {pwChangeError && <div style={{ fontSize: '0.8rem', color: 'var(--danger)' }}>{pwChangeError}</div>}
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button type="button" className="primary" style={{ flex: 1 }} onClick={async () => {
+                              const res = await authChangePassword(pwChangeCurrent, pwChangeNew)
+                              if (res.token) { localStorage.setItem('liftyToken', res.token); setPwChangeMode(false); setPwChangeCurrent(''); setPwChangeNew(''); setPwChangeError('') }
+                              else setPwChangeError(res.detail || 'Failed')
+                            }}>Save</button>
+                            <button type="button" style={{ flex: 1 }} onClick={() => { setPwChangeMode(false); setPwChangeCurrent(''); setPwChangeNew(''); setPwChangeError('') }}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              {/* Export */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Export</p>
-                <a href={`/api/profiles/${activeProfile.id}/export.csv`} download="lifty_export.csv" style={{ display: 'block' }}>
-                  <button type="button" style={{ width: '100%' }}><IconDownload />Export CSV</button>
-                </a>
-              </div>
-              {/* Import */}
-              <div className="card" style={{ margin: 0 }}>
-                <p className="section-heading">Import from Strong</p>
-                <p className="muted" style={{ fontSize: '0.82rem', marginTop: 0, marginBottom: 10 }}>Select the CSV exported from the Strong app. Already imported workouts are skipped.</p>
-                {importState && importState !== 'loading' && (
-                  <div style={{ background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '0.85rem' }}>
-                    {importState.error
-                      ? <span style={{ color: '#e06c75' }}><IconXCircle size={14} />{importState.error}</span>
-                      : <span style={{ color: 'var(--accent)' }}><IconCheck size={14} />Imported {importState.imported_workouts} workout{importState.imported_workouts !== 1 ? 's' : ''} &middot; {importState.imported_sets} sets &middot; {importState.created_exercises} new exercise{importState.created_exercises !== 1 ? 's' : ''}{importState.skipped_workouts > 0 ? ` (${importState.skipped_workouts} skipped)` : ''}</span>
-                    }
+
+              {/* ── ACCOUNT ── */}
+              <div className="settings-section">
+                <div className="settings-section-label">Account</div>
+                <div className="settings-rows">
+                  <div className="settings-row">
+                    <button type="button" style={{ width: '100%' }} onClick={() => {
+                      localStorage.removeItem('activeProfileId')
+                      setActiveProfile(null)
+                      setShowSettings(false)
+                      setPinSettingMode(null)
+                    }}>Switch Profile</button>
                   </div>
-                )}
-                <label style={{ display: 'block' }}>
-                  <input type="file" accept=".csv" style={{ display: 'none' }}
-                    onChange={async e => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      e.target.value = ''
-                      setImportState('loading')
-                      try {
-                        const result = await importStrong(file, activeProfile.id)
-                        setImportState(result)
-                        // Refresh workouts + exercises
-                        const [ws, exs] = await Promise.all([
-                          listWorkouts(activeProfile.id),
-                          listExercises(activeProfile.id),
-                        ])
-                        setWorkouts(ws)
-                        setExercises(exs)
-                      } catch (err) {
-                        setImportState({ error: 'Import failed. Check the file format.' })
-                      }
-                    }}
-                  />
-                  <button type="button" style={{ width: '100%', pointerEvents: 'none' }}
-                    onClick={e => e.currentTarget.parentElement.querySelector('input').click()}
-                    disabled={importState === 'loading'}>
-                    {importState === 'loading' ? 'Importing…' : <><IconUpload />Import Strong CSV</>}
-                  </button>
-                </label>
+                </div>
               </div>
-              {/* Switch profile */}
-              <div className="card" style={{ margin: 0 }}>
-                <button type="button" style={{ width: '100%' }} onClick={() => {
-                  localStorage.removeItem('activeProfileId')
-                  setActiveProfile(null)
-                  setShowSettings(false)
-                  setPinSettingMode(null)
-                }}>Switch Profile</button>
-              </div>
+
               {/* Danger zone */}
               <DangerZone profileId={activeProfile.id} onDeleted={async () => {
                 const ws = await listWorkouts(activeProfile.id)
                 setWorkouts(ws)
                 setPrsLoaded(false)
               }} />
+
             </div>
         </BottomSheet>
       )}
@@ -1372,9 +1690,10 @@ function BottomSheet({ onClose, maxHeight = '90vh', zIndex = 100, dragZoneConten
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
       onClick={onClose}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div className="glass-overlay" style={{ position: 'absolute', inset: 0 }} />
       <div ref={sheetRef}
-        style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight, display: 'flex', flexDirection: 'column', transform: `translateY(${dragY}px)`, transition: dragY === 0 ? 'transform 0.25s ease' : 'none' }}
+        className="glass-panel"
+        style={{ position: 'relative', borderRadius: '20px 20px 0 0', maxHeight, display: 'flex', flexDirection: 'column', transform: `translateY(${dragY}px)`, transition: dragY === 0 ? 'transform 0.25s ease' : 'none' }}
         onClick={e => e.stopPropagation()}>
         {/* Drag zone: pill + optional extra content (e.g. header, stats) */}
         <div ref={handleRef} style={{ touchAction: 'none' }}>
@@ -1409,8 +1728,8 @@ function DangerZone({ profileId, onDeleted }) {
   }
 
   return (
-    <div style={{ margin: 0, border: '1px solid rgba(224,108,117,0.35)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <p className="section-heading" style={{ color: '#e06c75', margin: 0 }}>Danger Zone</p>
+    <div style={{ margin: 0, border: '1px solid color-mix(in srgb, var(--danger) 35%, transparent)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p className="section-heading" style={{ color: 'var(--danger)', margin: 0 }}>Danger Zone</p>
       <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
         Permanently delete all workouts for this profile. Useful before re-importing. This cannot be undone.
       </p>
@@ -1427,7 +1746,7 @@ function DangerZone({ profileId, onDeleted }) {
               type="button"
               disabled={!ready || busy}
               onClick={handleDelete}
-              style={{ width: '100%', background: ready ? '#e06c75' : 'var(--bg-secondary)', color: ready ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, cursor: ready ? 'pointer' : 'not-allowed', opacity: busy ? 0.6 : 1, fontFamily: 'inherit', fontSize: '1rem', transition: 'background 0.15s' }}>
+              style={{ width: '100%', background: ready ? 'var(--danger)' : 'var(--bg-secondary)', color: ready ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 8, padding: '10px', fontWeight: 700, cursor: ready ? 'pointer' : 'not-allowed', opacity: busy ? 0.6 : 1, fontFamily: 'inherit', fontSize: '1rem', transition: 'background 0.15s' }}>
               {busy ? 'Deleting…' : <><Trash2 size={15} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} /> Delete All Workouts</>}
             </button>
           </>
@@ -1597,7 +1916,7 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose, onDelet
             <div style={{ fontWeight: 800, fontSize: '1.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workout.name}</div>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2 }}>{dateStr}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)', flexShrink: 0 }}><IconX size={16} /></button>
+          <button onClick={onClose} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text)', flexShrink: 0 }}><IconX size={16} /></button>
         </div>
 
         {/* Stats + donut row */}
@@ -1776,16 +2095,16 @@ function ProfileSelector({ profiles, onSelect, onCreate }) {
               value={pwInput}
               onChange={e => { setPwInput(e.target.value); setPinError('') }}
               disabled={pinVerifying || secsLeft > 0}
-              style={{ width: '100%', paddingRight: 44, marginBottom: 0, animation: pinError ? 'pinShake 0.4s ease' : 'none', borderColor: pinError ? '#e06c75' : undefined }}
+              style={{ width: '100%', paddingRight: 44, marginBottom: 0, animation: pinError ? 'pinShake 0.4s ease' : 'none', borderColor: pinError ? 'var(--danger)' : undefined }}
             />
             <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
               style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.1rem', padding: 4, lineHeight: 1 }}>
               {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-          {pinError && <div style={{ color: '#e06c75', fontSize: '0.85rem', textAlign: 'center' }}>{pinError}</div>}
+          {pinError && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', textAlign: 'center' }}>{pinError}</div>}
           {secsLeft > 0 && (
-            <div style={{ color: '#e06c75', fontSize: '0.85rem', textAlign: 'center' }}>
+            <div style={{ color: 'var(--danger)', fontSize: '0.85rem', textAlign: 'center' }}>
               Too many attempts — try again in {secsLeft}s
             </div>
           )}
@@ -1805,17 +2124,27 @@ function ProfileSelector({ profiles, onSelect, onCreate }) {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: '24px 16px', gap: 20 }}>
-      <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        <Dumbbell size={48} strokeWidth={1.5} style={{ marginBottom: 8, color: 'var(--accent)' }} />
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>lifty</h1>
-        <p style={{ margin: '8px 0 0', color: 'var(--muted)', fontSize: '1rem' }}>Who's training today?</p>
+      <div style={{ textAlign: 'center', marginBottom: 8, animation: 'celebrationPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+        <div style={{
+          width: 88, height: 88, borderRadius: '50%',
+          background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+          border: '2px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px',
+          animation: 'flamePulse 3s ease-in-out infinite',
+          boxShadow: '0 0 32px color-mix(in srgb, var(--accent) 18%, transparent)',
+        }}>
+          <Dumbbell size={40} strokeWidth={1.6} color='var(--accent)' />
+        </div>
+        <h1 style={{ margin: 0, fontSize: '2.2rem', fontWeight: 900, letterSpacing: '-0.5px' }}>lifty</h1>
+        <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '1rem' }}>Who's training today?</p>
       </div>
 
       <div style={{ width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {profiles.map(p => (
+        {profiles.map((p, i) => (
           <button key={p.id} type="button" onClick={() => handleProfileClick(p)}
-            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', fontWeight: 600, color: 'var(--text)' }}>
-            <div style={{ width: 36, height: 36, borderRadius: '50%', background: p.avatar_color || 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1rem', flexShrink: 0 }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', fontWeight: 600, color: 'var(--text)', animation: 'slideUp 0.35s ease both', animationDelay: `${i * 60}ms` }}>
+            <div style={{ width: 40, height: 40, borderRadius: '50%', background: p.avatar_color || 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1.1rem', flexShrink: 0, boxShadow: `0 2px 8px color-mix(in srgb, ${p.avatar_color || 'var(--accent)'} 40%, transparent)` }}>
               {p.name.charAt(0).toUpperCase()}
             </div>
             <span style={{ flex: 1 }}>{p.name}</span>
@@ -1911,7 +2240,7 @@ function PinSetForm({ onSave, onCancel }) {
         placeholder="Confirm password" value={confirm} maxLength={64}
         onChange={e => { setConfirm(e.target.value); setError('') }}
         style={{ marginBottom: 0 }} />
-      {error && <div style={{ color: '#e06c75', fontSize: '0.82rem' }}>{error}</div>}
+      {error && <div style={{ color: 'var(--danger)', fontSize: '0.82rem' }}>{error}</div>}
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" onClick={onCancel} style={{ flex: 1 }}>Cancel</button>
         <button type="submit" className="primary" style={{ flex: 1 }} disabled={saving}>
@@ -1922,7 +2251,7 @@ function PinSetForm({ onSave, onCancel }) {
   )
 }
 
-function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true }) {
+function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true, prs = [], liquidGlass = false, animationsEnabled = true }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
 
   const [, setTick] = React.useState(0)
@@ -1960,6 +2289,8 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   const [restLeft, setRestLeft] = React.useState(null)
   const [restRunning, setRestRunning] = React.useState(false)
   const restEndRef = React.useRef(null)
+  const [logPulseActive, setLogPulseActive] = React.useState(false)
+  const [prFlashExId, setPrFlashExId] = React.useState(null)
 
   async function openHistory(exId, exName) {
     setHistorySheet({ exId, name: exName, data: null })
@@ -1990,6 +2321,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   }
 
   function startRestTimer(dur) {
+    navigator.vibrate?.(20)
     restEndRef.current = Date.now() + dur * 1000
     setRestLeft(dur)
     setRestRunning(true)
@@ -2143,6 +2475,17 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     const weightKg = weight ? parseWeight(weight, unit) : null
     const newSet = await onAddSet(selectedExId, reps, weightKg)
     if (newSet) {
+      navigator.vibrate?.(30)
+      setLogPulseActive(true)
+      const repsNum = parseInt(reps)
+      if (weightKg && repsNum >= 1) {
+        const e1rm = repsNum > 1 ? Math.round(weightKg * (1 + 0.033 * repsNum) * 10) / 10 : weightKg
+        const existingPr = prs.find(p => p.exercise_id === selectedExId)
+        if (!existingPr || e1rm > existingPr.e1rm) {
+          setPrFlashExId(selectedExId)
+          setTimeout(() => setPrFlashExId(null), 3000)
+        }
+      }
       setWeight('')
       setReps('')
       startRestTimer(restDuration)
@@ -2169,7 +2512,8 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   const dw = kg => kg == null ? '—' : unit === 'lbs' ? Math.round(kg * 2.20462 * 10) / 10 : kg
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+    <div className={[liquidGlass ? 'liquid-glass' : '', animationsEnabled ? '' : 'no-anim'].filter(Boolean).join(' ') || undefined}
+      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
 
       {/* Sticky header */}
       <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -2188,31 +2532,32 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
               title="Tap to rename"
               style={{ fontWeight: 800, fontSize: '1.35rem', lineHeight: 1.2, cursor: 'text', borderRadius: 6, padding: '2px 4px 2px 0', display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{workout.name}</div>
           )}
-          <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ fontSize: '0.88rem', color: elapsed >= 7200 ? 'var(--danger)' : elapsed >= 5400 ? 'var(--warning)' : 'var(--text-muted)', marginTop: 4, fontVariantNumeric: 'tabular-nums', transition: 'color 2s ease' }}>
             {workout.status === 'in_progress' ? <Timer size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} /> : <Flag size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />} {workoutTimer} &nbsp;·&nbsp; {setCount} set{setCount !== 1 ? 's' : ''}
           </div>
         </div>
         {workout.status === 'in_progress' && (
           <button className="primary" disabled={finishing}
             onClick={async () => { setFinishing(true); await onFinish(workout.id) }}
-            style={{ whiteSpace: 'nowrap', padding: '10px 20px', borderRadius: 10, fontWeight: 700, opacity: finishing ? 0.6 : 1 }}>
-            {finishing ? '…' : 'Finish'}
+            style={{ whiteSpace: 'nowrap', padding: '10px 20px', borderRadius: 10, fontWeight: 700, opacity: finishing ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {finishing ? '…' : <><CheckCircle2 size={16} strokeWidth={2.2} />Finish</>}
           </button>
         )}
-        <button onClick={onExit}
-          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><IconX size={16} /></button>
+        <button onClick={sessionSets.length === 0 ? () => onCancel(workout.id) : onExit}
+          title={sessionSets.length === 0 ? 'Cancel workout' : 'Back to app'}
+          style={{ background: sessionSets.length === 0 ? 'color-mix(in srgb, var(--danger) 12%, transparent)' : 'var(--bg-secondary)', border: `1px solid ${sessionSets.length === 0 ? 'color-mix(in srgb, var(--danger) 35%, transparent)' : 'var(--border)'}`, color: sessionSets.length === 0 ? 'var(--danger)' : 'var(--text)', borderRadius: 8, padding: 0, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IconX size={16} /></button>
       </div>
 
       {/* Cancel confirmation modal */}
       {cancelConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="card" style={{ width: '100%', maxWidth: 360 }}>
+        <div className="glass-overlay" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div className="card glass-panel" style={{ width: '100%', maxWidth: 360 }}>
             <p className="section-heading" style={{ marginTop: 0 }}>Cancel workout?</p>
             <p className="muted" style={{ marginBottom: 20 }}>This will delete the workout and all logged sets. This cannot be undone.</p>
             <div className="row">
               <button onClick={() => setCancelConfirm(false)} style={{ flex: 1 }}>Keep going</button>
               <button onClick={() => { setCancelConfirm(false); onCancel(workout.id) }}
-                style={{ flex: 1, background: '#e55', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontWeight: 600 }}>Yes, cancel</button>
+                style={{ flex: 1, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontWeight: 600 }}>Yes, cancel</button>
             </div>
           </div>
         </div>
@@ -2222,11 +2567,23 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
       {restLeft !== null && (
         <div style={{ background: 'var(--accent)', color: '#fff', padding: '18px 16px 14px', textAlign: 'center' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.12em', opacity: 0.85, marginBottom: 4, textTransform: 'uppercase' }}>Rest</div>
-          <div style={{ fontSize: '3.2rem', fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-            {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <div style={{ fontSize: '3.2rem', fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+              {Math.floor(restLeft / 60)}:{String(restLeft % 60).padStart(2, '0')}
+            </div>
+            <div style={{ position: 'absolute', top: -4, right: -28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, pointerEvents: 'none' }}>
+              {[0, 0.5, 1].map((delay, i) => (
+                <span key={i} style={{
+                  fontSize: `${0.75 + i * 0.12}rem`, fontWeight: 800, opacity: 0,
+                  animation: `floatZ ${1.6 + i * 0.2}s ease-in-out ${delay}s infinite`,
+                  marginTop: i === 0 ? 8 : -2,
+                  marginLeft: [-4, 7, 1][i],
+                }}>z</span>
+              ))}
+            </div>
           </div>
           <div style={{ height: 4, background: 'rgba(255,255,255,0.3)', borderRadius: 2, margin: '10px 0 12px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', background: '#fff', borderRadius: 2, width: `${restPct * 100}%`, transition: 'width 1s linear' }} />
+            <div style={{ height: '100%', background: '#fff', borderRadius: 2, width: `${restPct * 100}%`, transition: 'width 1s linear', animation: restLeft !== null && restLeft <= 10 ? 'restBarPulse 0.5s ease-in-out infinite' : 'none' }} />
           </div>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
             {[60, 90, 120, 180].map(d => (
@@ -2249,8 +2606,22 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
         {workout.status === 'in_progress' && (
           <>
             {exerciseIds.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '60px 0 20px', color: 'var(--text-muted)', fontSize: '0.95rem' }}>
-                Tap <strong>Add Exercise</strong> below to get started
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px 32px', gap: 14, textAlign: 'center' }}>
+                <div style={{
+                  width: 72, height: 72, borderRadius: '50%',
+                  background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                  border: '2px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  animation: 'flamePulse 3s ease-in-out infinite',
+                }}>
+                  <Dumbbell size={32} color='var(--accent)' strokeWidth={1.8} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text)', marginBottom: 6 }}>Ready when you are</div>
+                  <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    Tap <span style={{ color: 'var(--accent)', fontWeight: 600 }}>+ Add Exercise</span> below<br />to build your first set
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2273,7 +2644,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                     <button type="button" onClick={() => activateExercise(exId)}
                       style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', padding: 0, minWidth: 0 }}>
                       <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex?.name || `Exercise ${exId}`}</span>
-                      <span style={{ color: 'var(--muted)', fontSize: '0.82rem', flexShrink: 0, marginLeft: 8 }}>{sets.length} set{sets.length !== 1 ? 's' : ''}</span>
+                      <span style={{ color: 'var(--muted)', fontSize: '0.82rem', flexShrink: 0, marginLeft: 8, display: 'flex', alignItems: 'center', gap: 5 }}>{prFlashExId === exId && (<span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, background: 'var(--warning)', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: '0.65rem', fontWeight: 700, animation: 'prBadgePop 3s ease-in-out forwards', pointerEvents: 'none', whiteSpace: 'nowrap' }}><Trophy size={10} strokeWidth={2.5} />PR</span>)}{sets.length} set{sets.length !== 1 ? 's' : ''}</span>
                     </button>
                     <button type="button" onClick={() => openHistory(exId, ex?.name || `Exercise ${exId}`)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px 6px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
@@ -2309,7 +2680,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                   {showTable && (
                     <div style={{ padding: '0 16px' }}>
                       {/* Column headers */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 28px', gap: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 32px', gap: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
                         {['#', 'PREV', unit.toUpperCase(), 'REPS', ''].map((h, i) => (
                           <span key={i} style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: i >= 2 ? 'center' : 'left' }}>{h}</span>
                         ))}
@@ -2318,8 +2689,9 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                       {/* Logged set rows */}
                       {sets.map((s, idx) => {
                         const prev = exLastSets[idx]
+                        const isOverload = s.weight != null && prev?.weight != null && s.weight > prev.weight
                         return (
-                          <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 28px', gap: 6, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+                          <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 32px', gap: 6, alignItems: 'center', padding: '9px 0', borderBottom: '1px solid var(--border)', borderRadius: 6, animation: isOverload ? 'overloadGlow 1.8s ease-out both' : 'none' }}>
                             <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--muted)' }}>{idx + 1}</span>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {prev ? `${dw(prev.weight)} × ${prev.reps}` : '—'}
@@ -2334,7 +2706,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
 
                       {/* Input row for active exercise */}
                       {isActive && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 28px', gap: 6, alignItems: 'center', padding: '8px 0 10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 64px 52px 32px', gap: 6, alignItems: 'center', padding: '8px 0 10px' }}>
                           <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent)' }}>{nextSetNum}</span>
                           <button type="button"
                             onClick={() => {
@@ -2348,16 +2720,19 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
                           </button>
                           <input type="number" inputMode="decimal" step="any" value={weight}
                             onChange={e => setWeight(e.target.value)}
+                            onFocus={e => e.target.select()}
                             onKeyDown={e => e.key === 'Enter' && handleLogSet()}
                             placeholder="—"
                             style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
                           <input type="number" inputMode="numeric" step="any" value={reps}
                             onChange={e => setReps(e.target.value)}
+                            onFocus={e => e.target.select()}
                             onKeyDown={e => e.key === 'Enter' && handleLogSet()}
                             placeholder="—"
                             style={{ textAlign: 'center', padding: '7px 4px', fontSize: '16px', fontWeight: 600, margin: 0 }} />
                           <button type="button" onClick={handleLogSet} disabled={!reps && !weight}
-                            style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0 }}><IconCheck size={15} style={{ marginRight: 0, display: 'block' }} /></button>
+                            style={{ background: (!reps && !weight) ? 'var(--bg-secondary)' : 'var(--accent)', border: 'none', borderRadius: 8, width: 32, height: 32, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', opacity: (!reps && !weight) ? 0.35 : 1, flexShrink: 0, animation: logPulseActive ? 'setLogPulse 0.35s ease-out forwards' : 'none' }}
+                            onAnimationEnd={() => setLogPulseActive(false)}><Check size={18} strokeWidth={2.5} /></button>
                         </div>
                       )}
                       {/* Plate calculator */}
@@ -2441,8 +2816,8 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
 
             {/* Cancel Workout */}
             <button type="button" onClick={() => setCancelConfirm(true)}
-              style={{ width: '100%', padding: '14px', borderRadius: 12, border: 'none', background: 'rgba(220,50,50,0.1)', color: '#e55', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', fontFamily: 'inherit' }}>
-              Cancel Workout
+              style={{ width: '100%', padding: '14px', borderRadius: 12, border: 'none', background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)', fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+              <IconX size={16} />Cancel Workout
             </button>
           </>
         )}
@@ -2475,8 +2850,8 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
       {historySheet && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
           onClick={() => setHistorySheet(null)}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+          <div className="glass-overlay" style={{ position: 'absolute', inset: 0 }} />
+          <div className="glass-panel" style={{ position: 'relative', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
@@ -2551,8 +2926,8 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
       {showExPicker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
           onClick={() => { setShowExPicker(false); setExSearch('') }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'relative', background: 'var(--card)', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+          <div className="glass-overlay" style={{ position: 'absolute', inset: 0 }} />
+          <div className="glass-panel" style={{ position: 'relative', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />

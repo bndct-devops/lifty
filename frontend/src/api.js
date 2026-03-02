@@ -1,14 +1,55 @@
 const base = '' // assumes hosting frontend and backend on same origin or using a proxy
 
+// ── Auth wrapper ──
+// Injects the Bearer token on every request and fires 'lifty:unauthorized'
+// on any 401 so the app can redirect to the lock screen.
+
+function authFetch(url, opts = {}) {
+  const token = localStorage.getItem('liftyToken')
+  const headers = { ...(opts.headers || {}) }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return fetch(url, { ...opts, headers }).then(res => {
+    if (res.status === 401) {
+      window.dispatchEvent(new Event('lifty:unauthorized'))
+    }
+    return res
+  })
+}
+
+// ── Instance auth ──
+
+export async function authStatus() {
+  const res = await authFetch(base + '/api/auth/status')
+  return res.json()
+}
+
+export async function authLogin(password) {
+  const res = await authFetch(base + '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+  return res.json()
+}
+
+export async function authChangePassword(currentPassword, newPassword) {
+  const res = await authFetch(base + '/api/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+  return res.json()
+}
+
 // ── Profiles ──
 
 export async function listProfiles() {
-  const res = await fetch(base + '/api/profiles')
+  const res = await authFetch(base + '/api/profiles')
   return res.json()
 }
 
 export async function createProfile(payload) {
-  const res = await fetch(base + '/api/profiles', {
+  const res = await authFetch(base + '/api/profiles', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -17,12 +58,12 @@ export async function createProfile(payload) {
 }
 
 export async function getProfile(id) {
-  const res = await fetch(base + `/api/profiles/${id}`)
+  const res = await authFetch(base + `/api/profiles/${id}`)
   return res.json()
 }
 
 export async function updateProfile(id, payload) {
-  const res = await fetch(base + `/api/profiles/${id}`, {
+  const res = await authFetch(base + `/api/profiles/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -31,19 +72,19 @@ export async function updateProfile(id, payload) {
 }
 
 export async function deleteProfile(id) {
-  await fetch(base + `/api/profiles/${id}`, { method: 'DELETE' })
+  await authFetch(base + `/api/profiles/${id}`, { method: 'DELETE' })
 }
 
 // ── Exercises ──
 
 export async function listExercises(profileId) {
   const q = profileId != null ? `?profile_id=${profileId}` : ''
-  const res = await fetch(base + `/api/exercises${q}`)
+  const res = await authFetch(base + `/api/exercises${q}`)
   return res.json()
 }
 
 export async function createExercise(payload) {
-  const res = await fetch(base + '/api/exercises', {
+  const res = await authFetch(base + '/api/exercises', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -52,7 +93,7 @@ export async function createExercise(payload) {
 }
 
 export async function updateExercise(id, payload) {
-  const res = await fetch(base + `/api/exercises/${id}`, {
+  const res = await authFetch(base + `/api/exercises/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -60,16 +101,20 @@ export async function updateExercise(id, payload) {
   return res.json()
 }
 
+export async function deleteExercise(id) {
+  await authFetch(base + `/api/exercises/${id}`, { method: 'DELETE' })
+}
+
 // ── Workouts ──
 
 export async function listWorkouts(profileId) {
   const q = profileId != null ? `?profile_id=${profileId}` : ''
-  const res = await fetch(base + `/api/workouts${q}`)
+  const res = await authFetch(base + `/api/workouts${q}`)
   return res.json()
 }
 
 export async function createWorkout(payload) {
-  const res = await fetch(base + '/api/workouts', {
+  const res = await authFetch(base + '/api/workouts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -78,17 +123,17 @@ export async function createWorkout(payload) {
 }
 
 export async function startWorkout(id) {
-  const res = await fetch(base + `/api/workouts/${id}/start`, { method: 'POST' })
+  const res = await authFetch(base + `/api/workouts/${id}/start`, { method: 'POST' })
   return res.json()
 }
 
 export async function finishWorkout(id) {
-  const res = await fetch(base + `/api/workouts/${id}/finish`, { method: 'POST' })
+  const res = await authFetch(base + `/api/workouts/${id}/finish`, { method: 'POST' })
   return res.json()
 }
 
 export async function updateWorkout(id, payload) {
-  const res = await fetch(base + `/api/workouts/${id}`, {
+  const res = await authFetch(base + `/api/workouts/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -100,25 +145,25 @@ export async function importStrong(file, profileId) {
   const form = new FormData()
   form.append('file', file)
   form.append('profile_id', profileId)
-  const res = await fetch(base + '/api/import/strong', { method: 'POST', body: form })
+  const res = await authFetch(base + '/api/import/strong', { method: 'POST', body: form })
   return res.json()
 }
 
 export async function markRestDay(profileId) {
-  const res = await fetch(base + `/api/workouts/rest-day?profile_id=${profileId}`, { method: 'POST' })
+  const res = await authFetch(base + `/api/workouts/rest-day?profile_id=${profileId}`, { method: 'POST' })
   return res.json()
 }
 
 export async function deleteWorkout(id) {
-  await fetch(base + `/api/workouts/${id}`, { method: 'DELETE' })
+  await authFetch(base + `/api/workouts/${id}`, { method: 'DELETE' })
 }
 
 export async function deleteAllWorkouts(profileId) {
-  await fetch(base + `/api/profiles/${profileId}/workouts`, { method: 'DELETE' })
+  await authFetch(base + `/api/profiles/${profileId}/workouts`, { method: 'DELETE' })
 }
 
 export async function addSet(workoutId, payload) {
-  const res = await fetch(base + `/api/workouts/${workoutId}/sets`, {
+  const res = await authFetch(base + `/api/workouts/${workoutId}/sets`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -127,7 +172,7 @@ export async function addSet(workoutId, payload) {
 }
 
 export async function updateSet(workoutId, setId, payload) {
-  const res = await fetch(base + `/api/workouts/${workoutId}/sets/${setId}`, {
+  const res = await authFetch(base + `/api/workouts/${workoutId}/sets/${setId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -136,28 +181,28 @@ export async function updateSet(workoutId, setId, payload) {
 }
 
 export async function deleteSet(workoutId, setId) {
-  await fetch(base + `/api/workouts/${workoutId}/sets/${setId}`, { method: 'DELETE' })
+  await authFetch(base + `/api/workouts/${workoutId}/sets/${setId}`, { method: 'DELETE' })
 }
 
 export async function getWorkoutDetail(id) {
-  const res = await fetch(base + `/api/workouts/${id}`)
+  const res = await authFetch(base + `/api/workouts/${id}`)
   return res.json()
 }
 
 export async function getExerciseLastSets(id) {
-  const res = await fetch(base + `/api/exercises/${id}/last_sets`)
+  const res = await authFetch(base + `/api/exercises/${id}/last_sets`)
   return res.json()
 }
 
 export async function getPRs(profileId) {
   const q = profileId != null ? `?profile_id=${profileId}` : ''
-  const res = await fetch(base + `/api/analytics/prs${q}`)
+  const res = await authFetch(base + `/api/analytics/prs${q}`)
   return res.json()
 }
 
 export async function getDailyVolume(profileId) {
   const q = profileId != null ? `?profile_id=${profileId}` : ''
-  const res = await fetch(base + `/api/analytics/daily-volume${q}`)
+  const res = await authFetch(base + `/api/analytics/daily-volume${q}`)
   return res.json()
 }
 
@@ -165,7 +210,7 @@ export async function getWeeklyVolume(profileId, weeks = 12) {
   const q = new URLSearchParams()
   if (profileId != null) q.set('profile_id', profileId)
   q.set('weeks', weeks)
-  const res = await fetch(base + `/api/analytics/weekly-volume?${q}`)
+  const res = await authFetch(base + `/api/analytics/weekly-volume?${q}`)
   return res.json()
 }
 
@@ -173,12 +218,12 @@ export async function getMuscleGroups(profileId, weeks = 12) {
   const q = new URLSearchParams()
   if (profileId != null) q.set('profile_id', profileId)
   q.set('weeks', weeks)
-  const res = await fetch(base + `/api/analytics/muscle-groups?${q}`)
+  const res = await authFetch(base + `/api/analytics/muscle-groups?${q}`)
   return res.json()
 }
 
 export async function setPin(profileId, pin) {
-  const res = await fetch(base + `/api/profiles/${profileId}/set-pin`, {
+  const res = await authFetch(base + `/api/profiles/${profileId}/set-pin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pin }),
@@ -187,7 +232,7 @@ export async function setPin(profileId, pin) {
 }
 
 export async function verifyPin(profileId, pin) {
-  const res = await fetch(base + `/api/profiles/${profileId}/verify-pin`, {
+  const res = await authFetch(base + `/api/profiles/${profileId}/verify-pin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pin }),
@@ -198,7 +243,7 @@ export async function verifyPin(profileId, pin) {
 export async function logBodyweight(profileId, weightKg, date) {
   const body = { weight_kg: weightKg }
   if (date) body.date = date
-  const res = await fetch(base + `/api/profiles/${profileId}/bodyweight`, {
+  const res = await authFetch(base + `/api/profiles/${profileId}/bodyweight`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
@@ -206,18 +251,18 @@ export async function logBodyweight(profileId, weightKg, date) {
 }
 
 export async function getBodyweight(profileId, limit = 90) {
-  const res = await fetch(base + `/api/profiles/${profileId}/bodyweight?limit=${limit}`)
+  const res = await authFetch(base + `/api/profiles/${profileId}/bodyweight?limit=${limit}`)
   return res.json()
 }
 
 export async function deleteBodyweightEntry(profileId, entryId) {
-  await fetch(base + `/api/profiles/${profileId}/bodyweight/${entryId}`, { method: 'DELETE' })
+  await authFetch(base + `/api/profiles/${profileId}/bodyweight/${entryId}`, { method: 'DELETE' })
 }
 
 export async function getExerciseHistory(exerciseId, profileId, limit = 30) {
   const q = new URLSearchParams()
   if (profileId != null) q.set('profile_id', profileId)
   q.set('limit', limit)
-  const res = await fetch(base + `/api/exercises/${exerciseId}/history?${q}`)
+  const res = await authFetch(base + `/api/exercises/${exerciseId}/history?${q}`)
   return res.json()
 }

@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   backend:
     build:
@@ -10,6 +9,8 @@ services:
       - ./data:/data
     environment:
       - LIFTY_DB=/data/lifty.db
+      # Uncomment and set to enable instance-level auth (all API routes require a JWT):
+      # - LIFTY_PASSWORD=your-password-here
 
   frontend:
     build:

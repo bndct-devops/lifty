@@ -280,3 +280,119 @@ def test_list_workouts(client):
     assert r.status_code == 200
     names = [w["name"] for w in r.json()]
     assert "Leg Day" in names
+
+
+# ─── Instance auth ─────────────────────────────────────────────────────────────
+
+def test_auth_status_disabled(client):
+    """Auth status returns disabled when LIFTY_PASSWORD is not set."""
+    r = client.get("/api/auth/status")
+    assert r.status_code == 200
+    assert r.json()["auth_enabled"] is False
+
+
+def test_auth_login_when_disabled(client):
+    """Login endpoint returns 400 when auth is not enabled."""
+    r = client.post("/api/auth/login", json={"password": "anything"})
+    assert r.status_code == 400
+
+
+def test_routes_accessible_without_token_when_auth_disabled(client):
+    """All API routes are open when auth is disabled (no LIFTY_PASSWORD)."""
+    r = client.get("/api/profiles")
+    assert r.status_code == 200
+
+
+def test_auth_status_enabled(auth_client):
+    """Auth status returns enabled when LIFTY_PASSWORD is set."""
+    client, _ = auth_client
+    r = client.get("/api/auth/status")
+    assert r.status_code == 200
+    assert r.json()["auth_enabled"] is True
+
+
+def test_auth_login_success(auth_client):
+    """Correct password returns a JWT token."""
+    client, token = auth_client
+    assert isinstance(token, str) and len(token) > 20
+
+
+def test_auth_login_wrong_password(auth_client):
+    """Wrong password returns 401."""
+    client, _ = auth_client
+    r = client.post("/api/auth/login", json={"password": "wrongpassword"})
+    assert r.status_code == 401
+
+
+def test_auth_protects_routes_without_token(auth_client):
+    """Protected routes return 401 when no token is supplied."""
+    client, _ = auth_client
+    r = client.get("/api/profiles")
+    assert r.status_code == 401
+
+
+def test_auth_protects_routes_with_bad_token(auth_client):
+    """Protected routes return 401 when the token is invalid."""
+    client, _ = auth_client
+    r = client.get("/api/profiles", headers={"Authorization": "Bearer notavalidtoken"})
+    assert r.status_code == 401
+
+
+def test_auth_allows_access_with_valid_token(auth_client):
+    """Valid JWT allows access to protected routes."""
+    client, token = auth_client
+    r = client.get("/api/profiles", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+
+
+def test_auth_unprotected_paths_always_accessible(auth_client):
+    """/health and /api/auth/status are always accessible without a token."""
+    client, _ = auth_client
+    assert client.get("/health").status_code == 200
+    assert client.get("/api/auth/status").status_code == 200
+
+
+def test_auth_change_password(auth_client):
+    """Change password succeeds, old token still works (JWT not revoked), new password works for login."""
+    client, token = auth_client
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Change the password
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "testpass", "new_password": "newpass123"},
+        headers=headers,
+    )
+    assert r.status_code == 200
+    new_token = r.json()["token"]
+    assert isinstance(new_token, str) and len(new_token) > 20
+
+    # Login with new password works
+    r2 = client.post("/api/auth/login", json={"password": "newpass123"})
+    assert r2.status_code == 200
+
+    # Login with old password fails
+    r3 = client.post("/api/auth/login", json={"password": "testpass"})
+    assert r3.status_code == 401
+
+
+def test_auth_change_password_wrong_current(auth_client):
+    """Change password with wrong current password returns 401."""
+    client, token = auth_client
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "wrongcurrent", "new_password": "newpass123"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 401
+
+
+def test_auth_change_password_too_short(auth_client):
+    """Change password with a new password under 4 chars returns 422."""
+    client, token = auth_client
+    r = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "testpass", "new_password": "abc"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 422

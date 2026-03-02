@@ -1,11 +1,11 @@
-# lifty — Checkpoint (28 Feb 2026)
+# lifty — Checkpoint (2 Mar 2026)
 
 ## How to run
 - **Quick start**: `./scripts/dev_up.sh`
 - **Rebuild**: `docker compose up --build -d`
 - **Reset DB**: `rm data/lifty.db && docker compose restart backend`
 - App: http://localhost:5173 · API: http://localhost:8000
-- **Prod** (Unraid/Dockge): frontend `:3420`, backend `:3421` via `docker-compose.prod.yml`
+- **Prod** (Unraid/Dockge): frontend `:3420`, backend via `ghcr.io` images (compose config in README)
 
 ## Stack
 - **Backend**: FastAPI + SQLModel + SQLite, Python 3.11
@@ -49,14 +49,44 @@
 ---
 
 ## Known issues / things to watch
-- `docker-compose.yml` has an obsolete `version:` key — harmless warning, safe to remove.
 - Calendar date alignment: workout `date` is stored as date-only; timezones west of UTC may see workouts on the wrong day.
 - iOS Safari kills backgrounded JS after ~30s; the ding won't sound while the screen is locked. `visibilitychange` corrects the timer display on return, but the audio fires then too.
 
 ---
 
 ## Possible next things
-- Workout templates (start from a previous workout's exercise list)
-- Bodyweight log on Progress tab
 - Service Worker for proper offline support + background push notifications (fixes iOS ding limitation)
+
+---
+## Changelog (2 Mar 2026) — session 3
+- **Instance auth** — `LIFTY_PASSWORD` env var enables JWT-based auth on all API routes; disabled by default (zero friction for local dev); lock screen with logo bubble + password input before profile selector; 30-day HS256 JWT stored in `localStorage`; `lifty:unauthorized` event listener clears token and shows lock screen on 401; Settings → Instance Auth: Change Password (in-app) + Sign Out; PBKDF2-SHA256 password hashing (stdlib, no extra deps); 10 new auth tests — 30 total passing
+- **Default profile name** — changed hardcoded `"benedict"` → `"Me"` in startup seed
+## Changelog (2 Mar 2026) — session 3
+- **Instance auth** — `LIFTY_PASSWORD` env var enables JWT-based auth on all API routes; disabled by default (zero friction for local dev); lock screen before profile selector; 30-day HS256 JWT stored in localStorage; 401 listener clears token and redirects to lock screen; Settings → Instance Auth → Change Password (in-app) + Sign Out; PBKDF2-SHA256 password hashing (stdlib, no extra deps); new test suite (13 auth tests, 30 total passing)
+- **Default profile name** — changed hardcoded `"benedict"` → `"Me"` in startup seed
+- **Timer banner fix** — banner no longer shows 0:00 after page refresh (seeds `timerStart` from `inProgress.start_time` via `useEffect`); also fixed 0:00 on exit by removing stray `setTimerStart(null)` from `onExit`
+- **Empty workout state** — replaced plain text with illustrated empty state: breathing accent bubble with Dumbbell icon, "Ready when you are" headline
+- **Login screen polish** — `ProfileSelector` redesigned: large breathing bubble logo, spring pop-in headline, staggered `slideUp` on profile cards, coloured avatar shadow
+- **Animation system** — `tabFadeIn` keyframe on all 4 tab sections; "Animations" toggle in settings persisted to localStorage; `.app.no-anim *` global kill switch (sets `animation-duration: 0.001ms`)
+- **Bottom nav redesign** — dual style system: `style-frosted` (floating pill, blur, labels) and `style-bubble` (icon-only compact pill); "Nav bar style" setting cycles between them, persisted to localStorage; fixed CSS specificity clash with global button rule using `!important` on `border:none`
+- **Celebration modal** — confirmed complete: overlay, `CheckCircle2` icon, workout name, duration/sets/exercises stats, "Nice!" dismiss button, `celebrationPop` spring animation
+
+## Changelog (2 Mar 2026)
+- **Tab switching** — eliminated iOS 300ms tap delay (`touch-action: manipulation`); added `useTransition` so button highlights instantly before heavy tab content renders
+- **Delete exercise** — `DELETE /api/exercises/{id}` endpoint (custom exercises only, cascades set entries); Delete button in Exercises tab (global/seeded exercises show Edit only)
+- **UI polish** — Finish button now shows ✓ checkmark; Cancel Workout button shows ✗ icon; template sheet gets an explicit close button
+- **Icon buttons** — fixed blank-square rendering on all fixed-size icon buttons (root cause: global `padding: 10px 16px` CSS rule + `box-sizing: border-box` leaving 0px content space); added `padding: 0` to detail sheet close, avatar, workout exit, and log-set confirm buttons; log-set button bumped to 32×32 with Lucide `Check`
+- **Rest timer z animation** — three staggered floating `z` letters (CSS `@keyframes floatZ`) drift up and fade next to the countdown; pure CSS, zero JS overhead
+- **Tab responsiveness** — `touch-action: manipulation` + `useTransition` for instant tab highlight on mobile
+- **docker-compose.yml** — removed obsolete `version:` key
+- **Delete exercise custom modal** — replaced `window.confirm()` with in-app modal matching the cancel-workout pattern
+- **Set row grid fix** — corrected `28px→32px` column mismatch so log button aligns with header
+- **History empty state** — centered clipboard-icon card shown when no workouts exist
+- **Progress tab caching** — replaced boolean `loaded` flags with per-range cache objects; switching ranges no longer re-fetches already-loaded data
+- **Set log pulse** — log button scales to 1.38× and snaps back on every set logged (`setLogPulse` keyframe + `onAnimationEnd` reset)
+- **Streak Flame** — animated Lucide `Flame` icon (orange) appears next to streak count when ≥ 3 days (`flamePulse` keyframe)
+- **PR badge** — after each set, e1rm (Epley) is compared against existing PRs; a gold `Trophy PR` pill pops on the exercise header for 3 s then fades out (`prBadgePop` keyframe)
+- **Haptic feedback** — `navigator.vibrate?.(30)` on set log, `?(20)` on rest timer start; silent on iOS/unsupported browsers
+- **Workout duration color shift** — timer line transitions muted → amber at 90 min → red at 120 min (2 s CSS ease)
+- **Rest bar pulse** — progress bar flashes at 0.5 s interval when ≤ 10 s remain (`restBarPulse` keyframe)
 

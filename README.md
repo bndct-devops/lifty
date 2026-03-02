@@ -112,21 +112,60 @@ rm data/lifty.db && docker compose restart backend
 
 ## Self-hosting
 
-Images are built and pushed to `ghcr.io` on every push to `main`.
+Images are built and pushed to `ghcr.io` on every push to `main` (amd64 + arm64).
+
+Create a `docker-compose.yml` on your host:
+
+```yaml
+services:
+  backend:
+    image: ghcr.io/bndct-devops/lifty-backend:latest
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - /mnt/user/appdata/lifty:/data   # adjust path as needed
+    environment:
+      - LIFTY_DB=/data/lifty.db
+      # - LIFTY_PASSWORD=your-password-here
+  frontend:
+    image: ghcr.io/bndct-devops/lifty-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "3420:80"
+    depends_on:
+      - backend
+```
+
+Then:
 
 ```bash
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
-Update the volume path in `docker-compose.prod.yml` to wherever you want the SQLite database stored on your host.
-
-```
-ghcr.io/bndct-devops/lifty-backend:latest   # amd64 + arm64
-ghcr.io/bndct-devops/lifty-frontend:latest  # amd64 + arm64
-```
+Update the volume path to wherever you want the SQLite database stored on your host.
 
 ---
+
+## Security
+
+By default the API has **no authentication** — fine for local/VPN use, but **set a password before exposing to the internet**.
+
+### Enable instance auth
+
+Uncomment `LIFTY_PASSWORD` in your `docker-compose.yml`:
+
+```yaml
+environment:
+  - LIFTY_DB=/data/lifty.db
+  - LIFTY_PASSWORD=your-strong-password
+```
+
+Restart the backend. The app will show a password screen on load. Once unlocked, a 30-day JWT is stored in the browser — you won't be prompted again until it expires.
+
+- **Change/reset password**: Settings → Instance Auth → Change Password (or set `LIFTY_PASSWORD` env var again and restart to override)
+- **Sign out**: Settings → Instance Auth → Sign Out
 
 ## Project structure
 
@@ -150,7 +189,6 @@ frontend/
 scripts/
   dev_up.sh            # one-command local dev start
 docker-compose.yml         # local dev (builds from source)
-docker-compose.prod.yml    # production (pulls from ghcr.io)
 .github/workflows/
   build-push.yml       # CI: build multi-arch images, push to ghcr.io
 ```

@@ -25,6 +25,20 @@ import backend.db as db_module
 import backend.seed_exercises as seed_module
 
 
+def _make_test_client(monkeypatch):
+    """Shared helper: spin up an in-memory TestClient."""
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    monkeypatch.setattr(app_module, "engine", test_engine)
+    monkeypatch.setattr(db_module, "engine", test_engine)
+    monkeypatch.setattr(seed_module, "engine", test_engine)
+    SQLModel.metadata.create_all(test_engine)
+    return test_engine
+
+
 @pytest.fixture()
 def client(monkeypatch):
     """Return a TestClient backed by a fresh in-memory SQLite database.
@@ -34,22 +48,27 @@ def client(monkeypatch):
     sqlite3 connection.  Without it each new connection gets a fresh,
     empty :memory: database and every query fails with "no such table".
     """
-    test_engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    _make_test_client(monkeypatch)
 
-    # Redirect every cached engine reference to the test engine.
-    monkeypatch.setattr(app_module, "engine", test_engine)
-    monkeypatch.setattr(db_module, "engine", test_engine)
-    monkeypatch.setattr(seed_module, "engine", test_engine)
-
-    # Build the schema from the current models (all columns, no migrations needed).
-    SQLModel.metadata.create_all(test_engine)
-
-    # Using the context manager triggers FastAPI startup/shutdown events.
-    # Startup will re-run create_db_and_tables (no-op) + migrations (no-op,
-    # columns already exist) + seed exercises – all against the test engine.
     with TestClient(app_module.app, raise_server_exceptions=True) as c:
         yield c
+
+
+@pytest.fixture()
+def auth_client(monkeypatch):
+    """TestClient with instance auth enabled (LIFTY_PASSWORD=testpass).
+
+    Yields (client, token) — the token is pre-obtained so tests can call
+    protected routes without repeating the login step.
+    """
+    monkeypatch.setenv("LIFTY_PASSWORD", "testpass")
+    _make_test_client(monkeypatch)
+
+    with TestClient(app_module.app, raise_server_exceptions=True) as c:
+        r = c.post("/api/auth/login", json={"password": "testpass"})
+        assert r.status_code == 200, f"Login failed: {r.text}"
+        token = r.json()["token"]
+        yield c, token
+
+    # Reset module-level auth state so subsequent tests start clean
+    app_module._auth_state.update({"enabled": False, "jwt_secret": "dev-only", "password_hash": None})
