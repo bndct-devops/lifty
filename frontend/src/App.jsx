@@ -1638,7 +1638,7 @@ export default function App() {
               <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
                 <button type="button" onClick={() => setShowAbout(true)}
                   style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 16px', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '0.03em' }}>
-                  {import.meta.env.VITE_COMMIT_SHA ? String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7) : 'dev'}
+                  v1.0.0
                 </button>
               </div>
 
@@ -1663,23 +1663,26 @@ export default function App() {
             </div>
             <h2 style={{ margin: '0 0 4px', fontWeight: 900, fontSize: '1.3rem' }}>lifty</h2>
             <p style={{ margin: '0 0 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Self-hosted workout tracker</p>
-            <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 16px', marginBottom: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Release</span>
+              <a href="https://github.com/bndct-devops/lifty/releases/tag/v1.0.0"
+                target="_blank" rel="noopener noreferrer"
+                style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 700, fontSize: '0.9rem' }}>
+                v1.0.0 ↗
+              </a>
+            </div>
+            <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Commit</span>
               {import.meta.env.VITE_COMMIT_SHA ? (
                 <a href={`https://github.com/bndct-devops/lifty/commit/${import.meta.env.VITE_COMMIT_SHA}`}
                   target="_blank" rel="noopener noreferrer"
-                  style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace', fontWeight: 600, fontSize: '0.9rem' }}>
+                  style={{ color: 'var(--text-muted)', textDecoration: 'none', fontFamily: 'monospace', fontSize: '0.85rem' }}>
                   {String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7)} ↗
                 </a>
               ) : (
-                <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--text-muted)' }}>dev</span>
+                <span style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--text-muted)' }}>dev</span>
               )}
             </div>
-            <a href="https://github.com/bndct-devops/lifty/commits/main"
-              target="_blank" rel="noopener noreferrer"
-              style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', textDecoration: 'none', marginBottom: 20 }}>
-              View all commits →
-            </a>
             <button type="button" className="primary" style={{ width: '100%' }} onClick={() => setShowAbout(false)}>Close</button>
           </div>
         </div>
