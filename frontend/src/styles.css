@@ -29,6 +29,21 @@
 }
 
 /* ── Catppuccin themes ── */
+:root[data-theme='lifty']{
+  --bg: #1e1e2e;
+  --bg-secondary: #313244;
+  --card: #181825;
+  --muted: #6c7086;
+  --text-muted: #585b70;
+  --accent: #f5c2e7;
+  --text: #cdd6f4;
+  --border: rgba(205,214,244,0.07);
+  --success: #a6e3a1;
+  --success-glow: rgba(166,227,161,0.22);
+  --danger: #f38ba8;
+  --warning: #fab387;
+}
+
 :root[data-theme='catppuccin-mocha']{
   --bg: #1e1e2e;
   --bg-secondary: #313244;

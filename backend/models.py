@@ -8,7 +8,7 @@ class Profile(SQLModel, table=True):
     name: str
     pin_hash: Optional[str] = None   # reserved for future PIN auth
     unit: str = Field(default="kg")  # "kg" or "lbs"
-    theme: str = Field(default="catppuccin-mocha")
+    theme: str = Field(default="lifty")
     rest_duration: int = Field(default=90)
     week_start: str = Field(default="monday")  # "monday" or "sunday"
     avatar_color: str = Field(default="#60a5fa")

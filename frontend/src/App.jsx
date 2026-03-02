@@ -60,6 +60,7 @@ const THEMES = [
   { id: 'nord',                 label: 'Nord',         color: '#88c0d0' },
   { id: 'gruvbox',              label: 'Gruvbox',      color: '#d79921' },
   { id: 'rose-pine',            label: 'Rosé Pine',    color: '#eb6f92' },
+  { id: 'lifty',                 label: 'Lifty',        color: '#f5c2e7' },
   { id: 'catppuccin-mocha',     label: 'Mocha',        color: '#cba6f7' },
   { id: 'catppuccin-macchiato', label: 'Macchiato',    color: '#c6a0f6' },
   { id: 'catppuccin-frappe',    label: 'Frappé',       color: '#ca9ee6' },
@@ -133,7 +134,7 @@ export default function App() {
   const EQUIPMENT = ['Bodyweight', 'Barbell', 'Dumbbell', 'Machine', 'Cable', 'Kettlebell', 'Trap Bar', 'EZ Bar', 'TRX', 'Other']
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', activeProfile?.theme || 'catppuccin-mocha')
+    document.documentElement.setAttribute('data-theme', activeProfile?.theme || 'lifty')
   }, [activeProfile?.theme])
 
   // ── Auth check on mount ──
@@ -513,7 +514,7 @@ export default function App() {
           setActiveProfile(p)
         }}
         onCreate={async name => {
-          const p = await createProfile({ name, unit: 'kg', theme: 'catppuccin-mocha' })
+          const p = await createProfile({ name, unit: 'kg', theme: 'lifty' })
           setProfiles(ps => [...ps, p])
           localStorage.setItem('activeProfileId', p.id)
           setActiveProfile(p)

@@ -6,7 +6,7 @@ from datetime import datetime
 class ProfileCreate(BaseModel):
     name: str
     unit: str = "kg"
-    theme: str = "catppuccin-mocha"
+    theme: str = "lifty"
 
 
 class ProfileUpdate(BaseModel):
