@@ -2,7 +2,7 @@ name: Build & Push Docker Images
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -17,6 +17,8 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   OWNER: bndct-devops
+  # :latest on main, :dev on dev
+  IMAGE_TAG: ${{ github.ref_name == 'main' && 'latest' || github.ref_name }}
 
 jobs:
   test:
@@ -66,7 +68,7 @@ jobs:
           file: Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/lifty-backend:latest
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/lifty-backend:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -77,7 +79,7 @@ jobs:
           file: frontend/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/lifty-frontend:latest
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/lifty-frontend:${{ env.IMAGE_TAG }}
           build-args: |
             COMMIT_SHA=${{ github.sha }}
           cache-from: type=gha
