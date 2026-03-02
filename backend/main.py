@@ -82,7 +82,7 @@ def on_startup():
             session.commit()
 
         # Instance password: LIFTY_PASSWORD env var overrides DB on every startup
-        env_pw = _os.environ.get("LIFTY_PASSWORD")
+        env_pw = _os.environ.get("LIFTY_PASSWORD", "").strip()
         if env_pw:
             pw_hash = _auth.hash_password(env_pw)
             session.execute(text("INSERT OR REPLACE INTO app_config (key, value) VALUES (:k, :v)"), {"k": "password_hash", "v": pw_hash})
@@ -129,7 +129,7 @@ def auth_status():
 async def auth_login(request: Request):
     """Public: exchange the instance password for a JWT."""
     body = await request.json()
-    password = body.get("password", "")
+    password = body.get("password", "").strip()
     if not _auth_state["enabled"]:
         return JSONResponse({"detail": "Auth is not enabled on this instance"}, status_code=400)
     if not _auth.verify_password(password, _auth_state["password_hash"]):

@@ -105,6 +105,7 @@ export default function App() {
   const [authEnabled, setAuthEnabled] = useState(false)
   const [isAuthed, setIsAuthed] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  const [backendError, setBackendError] = useState(false)
   const [lockError, setLockError] = useState('')
   const [lockPw, setLockPw] = useState('')
   const [lockLoading, setLockLoading] = useState(false)
@@ -147,8 +148,8 @@ export default function App() {
       }
       setAuthChecked(true)
     }).catch(() => {
-      // Server unreachable — proceed without auth so the error surfaces elsewhere
-      setIsAuthed(true)
+      // Server unreachable
+      setBackendError(true)
       setAuthChecked(true)
     })
   }, [])
@@ -163,8 +164,9 @@ export default function App() {
     return () => window.removeEventListener('lifty:unauthorized', handler)
   }, [])
 
-  // Load active profile from localStorage on mount
+  // Load profiles — only after auth is established and the user is authenticated
   useEffect(() => {
+    if (!authChecked || !isAuthed) return
     const savedId = localStorage.getItem('activeProfileId')
     listProfiles().then(ps => {
       setProfiles(ps || [])
@@ -173,8 +175,11 @@ export default function App() {
         if (found) setActiveProfile(found)
       }
       setProfileLoading(false)
+    }).catch(() => {
+      setBackendError(true)
+      setProfileLoading(false)
     })
-  }, [])
+  }, [authChecked, isAuthed])
 
   useEffect(() => {
     let id
@@ -427,6 +432,17 @@ export default function App() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)' }}>
         Loading…
+      </div>
+    )
+  }
+
+  if (backendError) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', color: 'var(--text)', gap: 16, padding: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem' }}>⚠️</div>
+        <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Can’t reach the backend</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: 300 }}>The API server may still be starting up. Give it a moment and try again.</div>
+        <button className="primary" style={{ marginTop: 8 }} onClick={() => window.location.reload()}>Retry</button>
       </div>
     )
   }
