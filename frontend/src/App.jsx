@@ -1507,9 +1507,23 @@ export default function App() {
                 <div className="settings-rows">
                   <div className="settings-row">
                     <div className="settings-row-label">Export CSV</div>
-                    <a href={`/api/profiles/${activeProfile.id}/export.csv`} download="lifty_export.csv">
-                      <button type="button" style={{ padding: '5px 14px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border)', fontFamily: 'inherit', cursor: 'pointer' }}><IconDownload size={14} /> Export</button>
-                    </a>
+                    <button type="button" style={{ padding: '5px 14px', borderRadius: 20, fontSize: '0.85rem', fontWeight: 600, border: '1px solid var(--border)', fontFamily: 'inherit', cursor: 'pointer' }} onClick={async () => {
+                      const url = `/api/profiles/${activeProfile.id}/export.csv`
+                      const token = localStorage.getItem('liftyToken')
+                      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+                      try {
+                        const res = await fetch(url, { headers })
+                        const blob = await res.blob()
+                        const file = new File([blob], 'lifty_export.csv', { type: 'text/csv' })
+                        if (navigator.canShare?.({ files: [file] })) {
+                          await navigator.share({ files: [file], title: 'lifty export' })
+                          return
+                        }
+                      } catch {}
+                      // fallback: direct download
+                      const a = document.createElement('a')
+                      a.href = url; a.download = 'lifty_export.csv'; a.click()
+                    }}><IconDownload size={14} /> Export</button>
                   </div>
                   <div className="settings-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2324,6 +2338,22 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
     const id = setInterval(() => setTick(t => t + 1), 1000)
     return () => clearInterval(id)
   }, [workout.status])
+
+  // Keep screen awake during active workout
+  React.useEffect(() => {
+    if (workout.status !== 'in_progress') return
+    let lock = null
+    const acquire = async () => {
+      try { lock = await navigator.wakeLock?.request('screen') } catch {}
+    }
+    acquire()
+    const onVisible = () => { if (document.visibilityState === 'visible') acquire() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      lock?.release?.()
+    }
+  }, [workout.status])
   function utcMsLocal(s) { return s ? new Date(s.endsWith('Z') ? s : s + 'Z').getTime() : null }
   const elapsed = workout.status === 'in_progress' && workout.start_time
     ? Math.max(0, Math.floor((Date.now() - utcMsLocal(workout.start_time)) / 1000))
@@ -2353,6 +2383,7 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
   const [restLeft, setRestLeft] = React.useState(null)
   const [restRunning, setRestRunning] = React.useState(false)
   const restEndRef = React.useRef(null)
+  const swipeTouchRef = React.useRef(null)
   const [logPulseActive, setLogPulseActive] = React.useState(false)
   const [prFlashExId, setPrFlashExId] = React.useState(null)
 
@@ -2577,10 +2608,16 @@ function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel
 
   return (
     <div className={[liquidGlass ? 'liquid-glass' : '', animationsEnabled ? '' : 'no-anim'].filter(Boolean).join(' ') || undefined}
-      style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-
-      {/* Sticky header */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+         style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}
+         onTouchStart={e => { swipeTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+         onTouchEnd={e => {
+           if (!swipeTouchRef.current) return
+           const dx = e.changedTouches[0].clientX - swipeTouchRef.current.x
+           const dy = e.changedTouches[0].clientY - swipeTouchRef.current.y
+           swipeTouchRef.current = null
+           if (dx > 80 && Math.abs(dx) > Math.abs(dy) * 1.5) onExit?.()
+         }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: 'calc(14px + env(safe-area-inset-top)) 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {editingName ? (
             <input
