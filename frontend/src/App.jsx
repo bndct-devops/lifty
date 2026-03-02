@@ -92,6 +92,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([])
   const [profileLoading, setProfileLoading] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
   const [pinSettingMode, setPinSettingMode] = useState(null) // 'set' | 'change' | null
   const [importState, setImportState] = useState(null) // null | 'loading' | {result}
   const [markingRestDay, setMarkingRestDay] = useState(false)
@@ -131,7 +132,7 @@ export default function App() {
   const EQUIPMENT = ['Bodyweight', 'Barbell', 'Dumbbell', 'Machine', 'Cable', 'Kettlebell', 'Trap Bar', 'EZ Bar', 'TRX', 'Other']
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', activeProfile?.theme || 'dark')
+    document.documentElement.setAttribute('data-theme', activeProfile?.theme || 'catppuccin-mocha')
   }, [activeProfile?.theme])
 
   // ── Auth check on mount ──
@@ -496,7 +497,7 @@ export default function App() {
           setActiveProfile(p)
         }}
         onCreate={async name => {
-          const p = await createProfile({ name, unit: 'kg', theme: 'dark' })
+          const p = await createProfile({ name, unit: 'kg', theme: 'catppuccin-mocha' })
           setProfiles(ps => [...ps, p])
           localStorage.setItem('activeProfileId', p.id)
           setActiveProfile(p)
@@ -572,7 +573,10 @@ export default function App() {
       )}
 
       <header className="top">
-        <h1>lifty</h1>
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          lifty
+          <Dumbbell size={22} strokeWidth={1.8} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+        </h1>
         <button type="button" onClick={() => setShowSettings(true)}
           style={{ width: 36, height: 36, borderRadius: '50%', background: activeProfile.avatar_color || 'var(--accent)', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1rem', flexShrink: 0, fontFamily: 'inherit' }}>
           {activeProfile.name.charAt(0).toUpperCase()}
@@ -1630,14 +1634,54 @@ export default function App() {
                 setPrsLoaded(false)
               }} />
 
+              {/* About pill */}
+              <div style={{ textAlign: 'center', padding: '12px 0 4px' }}>
+                <button type="button" onClick={() => setShowAbout(true)}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 20, padding: '5px 16px', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '0.03em' }}>
+                  {import.meta.env.VITE_COMMIT_SHA ? String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7) : 'dev'}
+                </button>
+              </div>
+
             </div>
         </BottomSheet>
       )}
 
-      {/* Version badge */}
-      {import.meta.env.VITE_COMMIT_SHA && (
-        <div style={{ position: 'fixed', bottom: 56, right: 8, fontSize: '0.6rem', color: 'var(--text-muted)', opacity: 0.45, pointerEvents: 'none', fontFamily: 'monospace', zIndex: 9999 }}>
-          {String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7)}
+      {/* About modal */}
+      {showAbout && (
+        <div className="glass-overlay" onClick={() => setShowAbout(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
+          <div className="glass-panel" onClick={e => e.stopPropagation()}
+            style={{ borderRadius: 20, padding: '28px 24px', maxWidth: 320, width: '100%', textAlign: 'center' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'color-mix(in srgb, var(--accent) 14%, transparent)',
+              border: '2px solid color-mix(in srgb, var(--accent) 30%, transparent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 14px',
+            }}>
+              <Dumbbell size={28} strokeWidth={1.6} color="var(--accent)" />
+            </div>
+            <h2 style={{ margin: '0 0 4px', fontWeight: 900, fontSize: '1.3rem' }}>lifty</h2>
+            <p style={{ margin: '0 0 20px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Self-hosted workout tracker</p>
+            <div style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Commit</span>
+              {import.meta.env.VITE_COMMIT_SHA ? (
+                <a href={`https://github.com/bndct-devops/lifty/commit/${import.meta.env.VITE_COMMIT_SHA}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace', fontWeight: 600, fontSize: '0.9rem' }}>
+                  {String(import.meta.env.VITE_COMMIT_SHA).slice(0, 7)} ↗
+                </a>
+              ) : (
+                <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--text-muted)' }}>dev</span>
+              )}
+            </div>
+            <a href="https://github.com/bndct-devops/lifty/commits/main"
+              target="_blank" rel="noopener noreferrer"
+              style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.85rem', textDecoration: 'none', marginBottom: 20 }}>
+              View all commits →
+            </a>
+            <button type="button" className="primary" style={{ width: '100%' }} onClick={() => setShowAbout(false)}>Close</button>
+          </div>
         </div>
       )}
     </div>

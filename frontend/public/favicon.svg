@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- left outer plate -->
-  <rect x="1.5" y="9" width="5" height="14" rx="2" fill="#F9A8C9"/>
-  <!-- left collar -->
-  <rect x="6.5" y="12" width="3.5" height="8" rx="1" fill="#F9A8C9"/>
-  <!-- bar -->
-  <rect x="10" y="14.5" width="12" height="3" rx="1.5" fill="#F9A8C9"/>
-  <!-- right collar -->
-  <rect x="22" y="12" width="3.5" height="8" rx="1" fill="#F9A8C9"/>
-  <!-- right outer plate -->
-  <rect x="25.5" y="9" width="5" height="14" rx="2" fill="#F9A8C9"/>
+  <!-- bubble background -->
+  <circle cx="16" cy="16" r="15" fill="rgba(245,194,231,0.18)" stroke="rgba(245,194,231,0.4)" stroke-width="1.5"/>
+  <!-- Lucide dumbbell centered (24x24 → 16x16 at center 16,16) -->
+  <g transform="translate(8,8) scale(0.667)" stroke="#f5c2e7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/>
+    <path d="m2.5 21.5 1.4-1.4"/>
+    <path d="m20.1 3.9 1.4-1.4"/>
+    <path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/>
+    <path d="m9.6 14.4 4.8-4.8"/>
+  </g>
 </svg>

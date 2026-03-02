@@ -96,7 +96,7 @@ def on_startup():
         # ── Create default profile if none exists; migrate orphaned workouts ──
         existing_profile = session.exec(select(Profile)).first()
         if not existing_profile:
-            profile = Profile(name="Me", unit="kg", theme="dark")
+            profile = Profile(name="Me", unit="kg", theme="catppuccin-mocha")
             session.add(profile)
             session.commit()
             session.refresh(profile)
