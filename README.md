@@ -1,6 +1,6 @@
 # lifty
 
-> A self-hosted, privacy-first workout tracker. No accounts, no cloud, no subscriptions — just your data on your own server.
+> A self-hosted, privacy-first workout tracker inspired by [Strong](https://www.strong.app). No accounts, no cloud, no subscriptions — just your data on your own server.
 
 **FastAPI · React PWA · SQLite · Docker Compose**
 
@@ -45,7 +45,7 @@
 ### Profiles & Settings
 - Multiple profiles on a single instance
 - Per-profile: unit (kg / lbs), theme, avatar colour, week start day, rest duration, ding toggle
-- Themes: Dark, Light, Catppuccin Mocha / Macchiato / Frappé / Latte
+- Themes: Dark, Light, AMOLED, Tokyo Night, Dracula, Nord, Gruvbox, Rosé Pine, [Catppuccin](https://catppuccin.com) Mocha / Macchiato / Frappé / Latte
 
 ### Import & Export
 - Strong CSV import — bring in your full workout history
@@ -192,4 +192,11 @@ docker-compose.yml         # local dev (builds from source)
 .github/workflows/
   build-push.yml       # CI: build multi-arch images, push to ghcr.io
 ```
+
+---
+
+## Acknowledgements
+
+- Inspired by [Strong](https://www.strong.app) — the best commercial workout tracker, which lifty aims to self-host-replace
+- Catppuccin theme palette by [Catppuccin](https://catppuccin.com)
 
