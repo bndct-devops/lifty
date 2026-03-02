@@ -616,7 +616,7 @@ export default function App() {
                 <div className="card" style={{ border: '2px solid var(--accent)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <p className="section-heading" style={{ color: 'var(--accent)', margin: 0 }}>Workout in Progress</p>
-                    <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.9rem', color: timerColor, fontWeight: 500, transition: 'color 2s ease' }}>⏱ {timerStr}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: '0.9rem', color: timerColor, fontWeight: 500, transition: 'color 2s ease' }}><Timer size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />{timerStr}</span>
                   </div>
                   <div style={{ fontWeight: 600, fontSize: '1.05rem', marginTop: 8 }}>{inProgress.name}</div>
                   <div className="muted small" style={{ margin: '4px 0 12px' }}>{(inProgress.unique_exercises_count ?? 0)} ex · {(inProgress.set_count ?? 0)} sets</div>
