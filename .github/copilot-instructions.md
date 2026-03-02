@@ -11,7 +11,8 @@
 - Catppuccin color reference: Mocha bg `#1e1e2e`, Pink `#f5c2e7`, Mauve `#cba6f7`.
 
 ## Code style
-- Frontend is a single `App.jsx` file — add to it, don't create new component files unless explicitly asked.
+- Frontend uses multiple files: `App.jsx` (main app), `ActiveWorkoutView.jsx`, `BottomSheet.jsx`, `utils.jsx` (shared helpers/icons).
+- Add new components as separate files in `src/`. Import them into `App.jsx`.
 - Styles go in `styles.css` — no CSS-in-JS libraries.
 - Backend is FastAPI + SQLModel. Keep endpoints RESTful.
 
