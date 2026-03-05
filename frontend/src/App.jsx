@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useTransition } from 'react'
 import { listExercises, createExercise, updateExercise, deleteExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory, authStatus, authLogin, authChangePassword } from './api'
-import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, CheckCircle2, Flame } from 'lucide-react'
+import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, CheckCircle2, Flame, TrendingUp } from 'lucide-react'
 import { fmtWeight, parseWeight, playDing, IconDownload, IconUpload, IconCheck, IconX, IconXCircle, MiniMarkdown } from './utils'
 import BottomSheet from './BottomSheet'
 import ActiveWorkoutView from './ActiveWorkoutView'
@@ -71,6 +71,9 @@ export default function App() {
   const [pwChangeError, setPwChangeError] = useState('')
   const [prs, setPrs] = useState([])
   const [prsLoaded, setPrsLoaded] = useState(false)
+  const [exChartSheet, setExChartSheet] = useState(null) // null | {exerciseId, name}
+  const [exChartData, setExChartData] = useState([])
+  const [exChartLoading, setExChartLoading] = useState(false)
   const [volumeCache, setVolumeCache] = useState({})  // keyed by range: 'week' | 4 | 8 | 12 | 26
   const [muscleCache, setMuscleCache] = useState({})  // keyed by same range keys
   const [volumeMetric, setVolumeMetric] = useState('sets') // 'sets' | 'tonnage'
@@ -1114,14 +1117,21 @@ export default function App() {
                   <div className="group-label">{group}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {prsByPart[group].map(pr => (
-                      <div key={pr.exercise_id} className="pr-row">
+                      <div key={pr.exercise_id} className="pr-row" onClick={async () => {
+                        setExChartSheet({ exerciseId: pr.exercise_id, name: pr.name })
+                        setExChartData([])
+                        setExChartLoading(true)
+                        const data = await getExerciseHistory(pr.exercise_id, activeProfile.id, 60)
+                        setExChartData(data || [])
+                        setExChartLoading(false)
+                      }} style={{ cursor: 'pointer' }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{pr.name}</div>
                           <div className="muted small">{pr.best_reps} reps × {fmtWeight(pr.best_weight, activeProfile.unit)}</div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
+                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                           <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--accent)' }}>{fmtWeight(pr.e1rm, activeProfile.unit)}</div>
-                          <div className="muted small">est. 1RM</div>
+                          <div className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>est. 1RM <TrendingUp size={11} /></div>
                         </div>
                       </div>
                     ))}
@@ -1196,6 +1206,67 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {exChartSheet && (
+          <BottomSheet onClose={() => setExChartSheet(null)} maxHeight="80vh">
+            <div style={{ padding: '0 18px 24px' }}>
+              <p className="section-heading" style={{ marginBottom: 4 }}>{exChartSheet.name}</p>
+              <p className="muted small" style={{ marginBottom: 16 }}>Estimated 1RM over time (Epley)</p>
+              {exChartLoading ? (
+                <p className="muted">Loading…</p>
+              ) : exChartData.length < 2 ? (
+                <p className="muted small">Not enough sessions yet — need at least 2 logged workouts.</p>
+              ) : (() => {
+                const toDisp = kg => kg == null ? null : activeProfile.unit === 'lbs' ? Math.round(kg * 2.20462 * 10) / 10 : Math.round(kg * 10) / 10
+                const entries = exChartData.filter(d => d.e1rm_kg != null)
+                if (entries.length < 2) return <p className="muted small">Not enough data with reps to compute 1RM.</p>
+                const vals = entries.map(d => toDisp(d.e1rm_kg))
+                const maxV = Math.max(...vals), minV = Math.min(...vals)
+                const range = maxV - minV || 0.1
+                const W = 320, H = 90, padL = 4, padR = 4, padT = 20, padB = 22
+                const n = entries.length
+                const xs = entries.map((_, i) => padL + (n === 1 ? (W - padL - padR) / 2 : i / (n - 1) * (W - padL - padR)))
+                const ys = vals.map(v => padT + (1 - (v - minV) / range) * H)
+                const polyline = xs.map((x, i) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ')
+                const fillPoly = `${xs[0].toFixed(1)},${(padT + H).toFixed(1)} ${polyline} ${xs[n-1].toFixed(1)},${(padT + H).toFixed(1)}`
+                function fmtD(s) { return new Date(s + 'T12:00').toLocaleDateString('default', { month: 'short', day: 'numeric' }) }
+                const labelIdxs = [0, Math.floor(n / 2), n - 1].filter((v, i, a) => a.indexOf(v) === i)
+                return (
+                  <div>
+                    <svg width="100%" viewBox={`0 0 ${W} ${padT + H + padB}`} style={{ display: 'block', marginBottom: 16 }}>
+                      <line x1={padL} y1={padT + H} x2={W - padR} y2={padT + H} stroke="var(--border)" strokeWidth="0.8" />
+                      <polyline points={fillPoly} fill="var(--accent)" opacity="0.12" />
+                      <polyline points={polyline} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      {xs.map((x, i) => (
+                        <circle key={i} cx={x} cy={ys[i]} r={i === n - 1 ? 3.5 : 2}
+                          fill={i === n - 1 ? 'var(--accent)' : 'var(--bg-secondary)'}
+                          stroke={i === n - 1 ? 'var(--accent)' : 'var(--text-muted)'} strokeWidth="1" />
+                      ))}
+                      <text x={xs[n-1]} y={ys[n-1] - 7} textAnchor="middle" fontSize="9" fontWeight="700" fill="var(--accent)">{vals[n-1]} {activeProfile.unit}</text>
+                      {labelIdxs.map((idx, i) => (
+                        <text key={idx} x={xs[idx]} y={padT + H + padB - 2}
+                          textAnchor={i === 0 ? 'start' : i === labelIdxs.length - 1 ? 'end' : 'middle'}
+                          fontSize="8" fill="var(--muted)">{fmtD(entries[idx].date)}</text>
+                      ))}
+                    </svg>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {[...entries].reverse().slice(0, 8).map((entry, i) => (
+                        <div key={entry.date + i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{fmtD(entry.date)}</span>
+                          <div style={{ display: 'flex', gap: 16, fontSize: '0.88rem' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>{entry.sets_count} set{entry.sets_count !== 1 ? 's' : ''}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>top {toDisp(entry.max_weight_kg)} {activeProfile.unit}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{toDisp(entry.e1rm_kg)} {activeProfile.unit}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          </BottomSheet>
+        )}
 
       {showTemplateSheet && (
         <BottomSheet onClose={() => setShowTemplateSheet(false)} maxHeight="80vh"
