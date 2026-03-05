@@ -1795,6 +1795,10 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose, onDelet
   const byEx = sets.reduce((acc, s) => {
     acc[s.exercise_id] = acc[s.exercise_id] || []; acc[s.exercise_id].push(s); return acc
   }, {})
+  // Preserve the order exercises were first logged (Object.entries on numeric keys sorts by id, not log order)
+  const exerciseOrder = []
+  const _seenEx = new Set()
+  sets.forEach(s => { if (!_seenEx.has(s.exercise_id)) { _seenEx.add(s.exercise_id); exerciseOrder.push(s.exercise_id) } })
 
   // Stats
   const totalSets = sets.length
@@ -1897,9 +1901,9 @@ function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose, onDelet
 
         {/* Sets body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 18px 32px' }}>
-          {Object.entries(byEx).map(([exId, exSets]) => {
+          {exerciseOrder.map(exId => {
+            const exSets = byEx[exId] || []
             const ex = exercises.find(e => e.id == exId)
-            const partIdx = BODY_PART_ORDER.indexOf(ex?.body_part)
             const color = COLORS[muscleEntries.findIndex(([p]) => p === (ex?.body_part || 'Other')) % COLORS.length]
             return (
               <div key={exId} style={{ marginBottom: 20 }}>

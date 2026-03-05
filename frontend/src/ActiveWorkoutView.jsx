@@ -45,7 +45,11 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     const trimmed = draftName.trim()
     if (trimmed && trimmed !== workout.name) onRename?.(workout.id, trimmed)
   }
-  const [selectedExId, setSelectedExId] = React.useState(null)
+  // Auto-select the last-worked exercise so the log row is ready on re-open
+  const [selectedExId, setSelectedExId] = React.useState(() => {
+    if (sessionSets.length > 0) return sessionSets[sessionSets.length - 1].exercise_id
+    return null
+  })
   const [showExPicker, setShowExPicker] = React.useState(false)
   const [exSearch, setExSearch] = React.useState('')
   const [reps, setReps] = React.useState('')
@@ -58,6 +62,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
   const [restRunning, setRestRunning] = React.useState(false)
   const restEndRef = React.useRef(null)
   const swipeTouchRef = React.useRef(null)
+  const exSearchInputRef = React.useRef(null)
   const [logPulseActive, setLogPulseActive] = React.useState(false)
   const [prFlashExId, setPrFlashExId] = React.useState(null)
 
@@ -239,6 +244,14 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     }
   }, [_activeSessionCount])
 
+  // Focus search input when exercise picker opens (autoFocus is unreliable on iOS Safari)
+  React.useEffect(() => {
+    if (showExPicker) {
+      const t = setTimeout(() => exSearchInputRef.current?.focus(), 80)
+      return () => clearTimeout(t)
+    }
+  }, [showExPicker])
+
   async function handleLogSet() {
     if (!selectedExId || (!reps && !weight)) return
     const weightKg = weight ? parseWeight(weight, unit) : null
@@ -282,7 +295,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
 
   return (
     <div className={[liquidGlass ? 'liquid-glass' : '', animationsEnabled ? '' : 'no-anim'].filter(Boolean).join(' ') || undefined}
-         style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}
+         style={{ minHeight: '100dvh', background: 'var(--bg)' }}
          onTouchStart={e => { swipeTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
          onTouchEnd={e => {
            if (!swipeTouchRef.current) return
@@ -291,7 +304,8 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
            swipeTouchRef.current = null
            if (dx > 80 && Math.abs(dx) > Math.abs(dy) * 1.5) onExit?.()
          }}>
-      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: 'calc(14px + env(safe-area-inset-top)) 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+      <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: 'calc(14px + env(safe-area-inset-top)) 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {editingName ? (
             <input
@@ -323,22 +337,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
           style={{ background: sessionSets.length === 0 ? 'color-mix(in srgb, var(--danger) 12%, transparent)' : 'var(--bg-secondary)', border: `1px solid ${sessionSets.length === 0 ? 'color-mix(in srgb, var(--danger) 35%, transparent)' : 'var(--border)'}`, color: sessionSets.length === 0 ? 'var(--danger)' : 'var(--text)', borderRadius: 8, padding: 0, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IconX size={16} /></button>
       </div>
 
-      {/* Cancel confirmation modal */}
-      {cancelConfirm && (
-        <div className="glass-overlay" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div className="card glass-panel" style={{ width: '100%', maxWidth: 360 }}>
-            <p className="section-heading" style={{ marginTop: 0 }}>Cancel workout?</p>
-            <p className="muted" style={{ marginBottom: 20 }}>This will delete the workout and all logged sets. This cannot be undone.</p>
-            <div className="row">
-              <button onClick={() => setCancelConfirm(false)} style={{ flex: 1 }}>Keep going</button>
-              <button onClick={() => { setCancelConfirm(false); onCancel(workout.id) }}
-                style={{ flex: 1, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontWeight: 600 }}>Yes, cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rest timer */}
+      {/* Rest timer — sticky with header */}
       {restLeft !== null && (
         <div style={{ background: 'var(--accent)', color: '#fff', padding: '18px 16px 14px', textAlign: 'center' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.12em', opacity: 0.85, marginBottom: 4, textTransform: 'uppercase' }}>Rest</div>
@@ -374,9 +373,25 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
           </div>
         </div>
       )}
+      </div>{/* end sticky wrapper */}
 
-      {/* Main scroll area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 32px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Cancel confirmation modal */}
+      {cancelConfirm && (
+        <div className="glass-overlay" style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div className="card glass-panel" style={{ width: '100%', maxWidth: 360 }}>
+            <p className="section-heading" style={{ marginTop: 0 }}>Cancel workout?</p>
+            <p className="muted" style={{ marginBottom: 20 }}>This will delete the workout and all logged sets. This cannot be undone.</p>
+            <div className="row">
+              <button onClick={() => setCancelConfirm(false)} style={{ flex: 1 }}>Keep going</button>
+              <button onClick={() => { setCancelConfirm(false); onCancel(workout.id) }}
+                style={{ flex: 1, background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 0', cursor: 'pointer', fontWeight: 600 }}>Yes, cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main content */}
+      <div style={{ padding: '16px 16px 32px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {workout.status === 'in_progress' && (
           <>
@@ -604,7 +619,8 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
               <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>Workout complete</div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{setCount} set{setCount !== 1 ? 's' : ''} · {workoutTimer}</div>
             </div>
-            {Object.entries(setsByExercise).map(([exId, sets]) => {
+            {orderedExIds.map(exId => {
+              const sets = setsByExercise[exId] || []
               const ex = exercises.find(e => e.id == exId)
               return (
                 <div key={exId} style={{ marginBottom: 16 }}>
@@ -702,7 +718,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
           onClick={() => { setShowExPicker(false); setExSearch('') }}>
           <div className="glass-overlay" style={{ position: 'absolute', inset: 0 }} />
-          <div className="glass-panel" style={{ position: 'relative', borderRadius: '20px 20px 0 0', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+          <div className="glass-panel" style={{ position: 'relative', borderRadius: '20px 20px 0 0', maxHeight: '85dvh', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
@@ -712,11 +728,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
               <button onClick={() => { setShowExPicker(false); setExSearch('') }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
-            <div style={{ padding: '0 16px 8px' }}>
-              <input autoFocus placeholder="Search exercises…" value={exSearch}
-                onChange={e => setExSearch(e.target.value)} style={{ margin: 0 }} />
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 24px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 8px' }}>
               {groupKeys.length === 0 && <div className="muted small" style={{ padding: '16px 0' }}>No exercises found</div>}
               {groupKeys.map(group => (
                 <div key={group}>
@@ -732,6 +744,11 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
                   ))}
                 </div>
               ))}
+            </div>
+            {/* Search input at bottom so it sits just above the keyboard */}
+            <div style={{ padding: '8px 16px calc(8px + env(safe-area-inset-bottom))', borderTop: '1px solid var(--border)' }}>
+              <input ref={exSearchInputRef} placeholder="Search exercises…" value={exSearch}
+                onChange={e => setExSearch(e.target.value)} style={{ margin: 0 }} />
             </div>
           </div>
         </div>
