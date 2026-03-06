@@ -55,7 +55,26 @@
 ---
 
 ## Possible next things
-- Service Worker for proper offline support + background push notifications (fixes iOS ding limitation)
+
+### Infrastructure
+- **v1.0.1 release** — merge `dev` → `main`, tag, write release notes (icon fix, Lifty theme, PWA polish, auth, refactor, etc.); update hardcoded `v1.0.0` strings in App.jsx (about modal pill + release link)
+- **CI: explicit frontend build job** — add `npm ci && npm run build` step before `build-and-push` for faster, cheaper feedback on broken JSX/imports (currently only caught inside the Docker build)
+
+### UX / missing features
+- **JSON backup / restore** — full JSON dump of exercises + workouts + sets per profile; CSV export exists but can't be re-imported; needed for migrating between instances
+- **System theme auto-follow** — "System" option in theme picker reads `prefers-color-scheme` and maps to Light/Dark; single media query, no backend change
+- **Exercise picker: body part filter chips** — horizontal scrollable chip row (All / Chest / Back / …) above the list in the add-exercise bottom sheet; reuses existing filter logic from Exercises tab
+- **Exercise picker: inline "New" quick-create** — "+ New Exercise" button inside the picker sheet; opens a small inline form (name + body part) so users don't have to exit the workout to create a custom exercise
+
+### Tech debt
+- **Frontend Vitest tests** — no component tests exist; add Vitest + React Testing Library; smoke tests for `fmtWeight`, `parseWeight`, set-log flow would catch regressions
+
+---
+## Changelog (6 Mar 2026)
+- **Per-exercise 1RM chart** — tap any PR row in the Progress tab → BottomSheet with pure SVG line chart (accent fill + polyline, date labels) + recent-sessions table (date · sets · top weight · est. 1RM); fetches `GET /api/exercises/{id}/history?limit=60`; `TrendingUp` icon hint on PR rows
+- **Service Worker** (`public/sw.js`) — offline-first caching: static assets cache-first, API network-first with stale-cache fallback, navigation network-first; background rest-timer: page posts `SCHEDULE_NOTIFICATION`/`CANCEL_NOTIFICATION`, SW fires `showNotification` via `setTimeout` wrapped in `e.waitUntil`; `notificationclick` focuses existing window or opens `/`; SW works on non-EU iOS 16.4+ for locked-screen rest-timer ding
+- **SW update → auto-reload** (`main.jsx`) — `updatefound` + `statechange` listener reloads all open clients when a new SW version activates, so deploys propagate immediately
+- **nginx cache strategy** — `index.html` + `sw.js` served with `no-store, no-cache, must-revalidate`; hashed JS/CSS/assets served with `public, immutable` (1 year); `sw.js` exempt from the broad `.js` immutable rule via an earlier `location = /sw.js` block
 
 ---
 ## Changelog (2 Mar 2026) — session 3
