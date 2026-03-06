@@ -34,19 +34,30 @@ export function IconXCircle({ size = 14 }) {
 export function playDing() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    function tone(freq, t, dur) {
-      const osc = ctx.createOscillator()
-      const g = ctx.createGain()
-      osc.connect(g); g.connect(ctx.destination)
-      osc.type = 'sine'; osc.frequency.value = freq
-      g.gain.setValueAtTime(0, t)
-      g.gain.linearRampToValueAtTime(0.35, t + 0.01)
-      g.gain.exponentialRampToValueAtTime(0.001, t + dur)
-      osc.start(t); osc.stop(t + dur)
+    function schedTones() {
+      function tone(freq, t, dur) {
+        const osc = ctx.createOscillator()
+        const g = ctx.createGain()
+        osc.connect(g); g.connect(ctx.destination)
+        osc.type = 'sine'; osc.frequency.value = freq
+        g.gain.setValueAtTime(0, t)
+        g.gain.linearRampToValueAtTime(0.35, t + 0.01)
+        g.gain.exponentialRampToValueAtTime(0.001, t + dur)
+        osc.start(t); osc.stop(t + dur)
+      }
+      tone(1046.5, ctx.currentTime, 1.2)       // C6
+      tone(1318.5, ctx.currentTime + 0.18, 1.0) // E6
     }
-    tone(1046.5, ctx.currentTime, 1.2)       // C6
-    tone(1318.5, ctx.currentTime + 0.18, 1.0) // E6
-  } catch (_) {}
+    // AudioContext created outside a user gesture may start suspended — resume first
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(schedTones).catch(() => {})
+    } else {
+      schedTones()
+    }
+    return true
+  } catch (_) {
+    return false
+  }
 }
 
 // Lightweight markdown renderer for workout notes

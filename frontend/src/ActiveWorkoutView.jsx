@@ -150,9 +150,10 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     if (!restRunning || !restEndRef.current) return
 
     function finish() {
-      // Cancel the SW notification — page handled this finish
-      cancelSwNotif()
-      if (dingEnabled) playDing()
+      const played = dingEnabled ? playDing() : false
+      // Only cancel the SW notification if the page audio played — otherwise let
+      // the SW notification fire as the sole fallback alarm
+      if (played) cancelSwNotif()
       if (navigator.vibrate) navigator.vibrate([300, 100, 300])
       setRestLeft(null)
       setRestRunning(false)
