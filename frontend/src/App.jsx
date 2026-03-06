@@ -913,7 +913,7 @@ export default function App() {
               <p className="section-heading">Body Weight</p>
               <form onSubmit={async e => {
                 e.preventDefault()
-                const n = parseFloat(bwInput)
+                const n = parseFloat(bwInput.replace(',', '.'))
                 if (isNaN(n) || n <= 0) return
                 setBwSaving(true)
                 const kg = activeProfile.unit === 'lbs' ? Math.round(n / 2.20462 * 100) / 100 : n
@@ -924,7 +924,7 @@ export default function App() {
                 setBwSaving(false)
               }} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                 <input
-                  type="number" inputMode="decimal" step="0.1" min="20" max="500"
+                  type="text" inputMode="decimal"
                   placeholder={`Today's weight (${activeProfile.unit})`}
                   value={bwInput}
                   onChange={e => setBwInput(e.target.value)}
