@@ -2,6 +2,8 @@ FROM node:18-alpine AS build
 WORKDIR /app
 ARG COMMIT_SHA=dev
 ENV VITE_COMMIT_SHA=$COMMIT_SHA
+ARG VITE_SHORT_TIMER=
+ENV VITE_SHORT_TIMER=$VITE_SHORT_TIMER
 COPY package.json package-lock.json* ./
 RUN npm install --silent
 COPY . .

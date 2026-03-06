@@ -31,7 +31,7 @@ export function IconXCircle({ size = 14 }) {
 }
 
 // Two-tone bell synthesized via Web Audio (no audio file needed)
-export function playDing() {
+export async function playDing() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
     function schedTones() {
@@ -48,12 +48,10 @@ export function playDing() {
       tone(1046.5, ctx.currentTime, 1.2)       // C6
       tone(1318.5, ctx.currentTime + 0.18, 1.0) // E6
     }
-    // AudioContext created outside a user gesture may start suspended — resume first
     if (ctx.state === 'suspended') {
-      ctx.resume().then(schedTones).catch(() => {})
-    } else {
-      schedTones()
+      await ctx.resume()
     }
+    schedTones()
     return true
   } catch (_) {
     return false

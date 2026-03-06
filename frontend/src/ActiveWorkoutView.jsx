@@ -57,7 +57,10 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
   const [lastSetsByExId, setLastSetsByExId] = React.useState({})
   const [historySheet, setHistorySheet] = React.useState(null) // null | {exId, name, data}
   const [historyLoading, setHistoryLoading] = React.useState(false)
-  const [restDuration, setRestDuration] = React.useState(propRestDuration)
+  const REST_STEPS = import.meta.env.VITE_SHORT_TIMER ? [3, 5, 8, 10] : [60, 90, 120, 180]
+  const [restDuration, setRestDuration] = React.useState(
+    import.meta.env.VITE_SHORT_TIMER ? REST_STEPS[1] : propRestDuration
+  )
   const [restLeft, setRestLeft] = React.useState(null)
   const [restRunning, setRestRunning] = React.useState(false)
   const restEndRef = React.useRef(null)
@@ -153,13 +156,15 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     if (!restRunning || !restEndRef.current) return
 
     function finish() {
-      const played = dingEnabled ? playDing() : false
-      // Only cancel the SW notification if the page audio played — otherwise let
-      // the SW notification fire as the sole fallback alarm
-      if (played) cancelSwNotif()
-      if (navigator.vibrate) navigator.vibrate([300, 100, 300])
+      // Stop the timer display immediately — don't gate on async audio
       setRestLeft(null)
       setRestRunning(false)
+      if (navigator.vibrate) navigator.vibrate([300, 100, 300])
+      // Play audio async; only cancel SW notification if page audio succeeds
+      // (otherwise the SW notification fires as fallback alarm)
+      if (dingEnabled) {
+        playDing().then(played => { if (played) cancelSwNotif() }).catch(() => {})
+      }
     }
 
     // Tick every 250ms — recomputes from absolute end time, handles finish itself
@@ -364,7 +369,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
             <div style={{ height: '100%', background: '#fff', borderRadius: 2, width: `${restPct * 100}%`, transition: 'width 1s linear', animation: restLeft !== null && restLeft <= 10 ? 'restBarPulse 0.5s ease-in-out infinite' : 'none' }} />
           </div>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
-            {[60, 90, 120, 180].map(d => (
+            {REST_STEPS.map(d => (
               <button key={d} onClick={() => { saveRestDuration(d); if (restRunning) startRestTimer(d) }}
                 style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.5)', background: restDuration === d ? '#fff' : 'transparent', color: restDuration === d ? 'var(--accent)' : '#fff', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>
                 {d}s
@@ -578,7 +583,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
                   {isActive && restLeft === null && sets.length > 0 && (
                     <div style={{ padding: '4px 16px 12px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Rest:</span>
-                      {[60, 90, 120, 180].map(d => (
+                      {REST_STEPS.map(d => (
                         <button key={d} type="button" onClick={() => saveRestDuration(d)}
                           style={{ padding: '2px 8px', borderRadius: 6, border: restDuration === d ? '2px solid var(--accent)' : '1px solid var(--border)', background: restDuration === d ? 'var(--accent)' : 'transparent', color: restDuration === d ? '#fff' : 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}>
                           {d}s
