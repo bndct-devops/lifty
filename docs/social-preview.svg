@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#f5c2e7" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#f5c2e7" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="#1e1e2e"/>
+
+  <!-- Glow behind icon -->
+  <ellipse cx="320" cy="320" rx="320" ry="320" fill="url(#glow)"/>
+
+  <!-- Bubble -->
+  <circle cx="320" cy="320" r="220" fill="rgba(245,194,231,0.09)" stroke="rgba(245,194,231,0.28)" stroke-width="4"/>
+
+  <!-- Dumbbell: scale=8, non-scaling-stroke keeps line weight crisp -->
+  <g transform="translate(224,224) scale(8)" stroke="#f5c2e7" stroke-width="1.6"
+     stroke-linecap="round" stroke-linejoin="round" fill="none"
+     style="vector-effect:non-scaling-stroke">
+    <path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"/>
+    <path d="m2.5 21.5 1.4-1.4"/>
+    <path d="m20.1 3.9 1.4-1.4"/>
+    <path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"/>
+    <path d="m9.6 14.4 4.8-4.8"/>
+  </g>
+
+  <!-- Divider -->
+  <line x1="600" y1="180" x2="600" y2="460" stroke="rgba(245,194,231,0.18)" stroke-width="1.5"/>
+
+  <!-- Wordmark + tagline, centred in right half (x 600–1280, mid = 940) -->
+  <text x="940" y="308"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="172" font-weight="800" fill="#f5c2e7" letter-spacing="-4"
+        text-anchor="middle">lifty</text>
+
+  <text x="940" y="388"
+        font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="34" font-weight="400" fill="#cdd6f4" opacity="0.65"
+        letter-spacing="1.5" text-anchor="middle">your self-hosted workout tracker</text>
+</svg>

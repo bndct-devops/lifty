@@ -65,6 +65,9 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
   const exSearchInputRef = React.useRef(null)
   const [logPulseActive, setLogPulseActive] = React.useState(false)
   const [prFlashExId, setPrFlashExId] = React.useState(null)
+  const [notifPerm, setNotifPerm] = React.useState(() =>
+    typeof Notification !== 'undefined' ? Notification.permission : 'unavailable'
+  )
 
   async function openHistory(exId, exName) {
     setHistorySheet({ exId, name: exName, data: null })
@@ -100,7 +103,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     setRestLeft(dur)
     setRestRunning(true)
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {})
+      Notification.requestPermission().then(p => setNotifPerm(p)).catch(() => {})
     }
     scheduleSwNotif(dur * 1000)
   }
@@ -372,6 +375,18 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
               Skip
             </button>
           </div>
+          {/* Notification permission status */}
+          {notifPerm === 'default' && (
+            <div onClick={() => Notification.requestPermission().then(p => setNotifPerm(p)).catch(() => {})}
+              style={{ marginTop: 10, fontSize: '0.72rem', opacity: 0.85, cursor: 'pointer', textDecoration: 'underline' }}>
+              Tap to enable alarm notification
+            </div>
+          )}
+          {notifPerm === 'denied' && (
+            <div style={{ marginTop: 10, fontSize: '0.72rem', opacity: 0.75 }}>
+              Alarm notifications blocked — allow in browser settings
+            </div>
+          )}
         </div>
       )}
       </div>{/* end sticky wrapper */}
