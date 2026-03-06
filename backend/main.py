@@ -2,13 +2,14 @@ from fastapi import FastAPI, Request, Response, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlmodel import Session, select, text, or_
 from backend.db import engine, create_db_and_tables
-from backend.models import Exercise, Workout, SetEntry, Profile, BodyweightEntry
+from backend.models import Exercise, Workout, SetEntry, Profile, BodyweightEntry, PushSubscription
 from backend import schemas
 from backend.seed_exercises import seed as seed_exercises
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter
 from typing import List, Optional
 from datetime import datetime, timedelta
 import io, csv, re, hashlib, os as _os, time as _time, secrets as _secrets
+import asyncio, json, base64
 import uvicorn
 from backend import auth as _auth
 
@@ -16,6 +17,10 @@ from backend import auth as _auth
 _pw_attempts: dict = {}   # profile_id -> {"count": int, "locked_until": float}
 _PW_MAX_ATTEMPTS = 5
 _PW_LOCKOUT_SECS = 30
+
+# ── Web Push state ──
+_vapid_state: dict = {"private_b64url": None, "public_b64url": None}
+_push_tasks: dict = {}   # key -> asyncio.Task
 
 app = FastAPI(title="lifty API")
 
@@ -110,6 +115,39 @@ def on_startup():
     # ── Seed built-in global exercises (idempotent) ──
     seed_exercises()
 
+    # ── VAPID key pair: generate once, persist in app_config ──
+    from cryptography.hazmat.primitives.asymmetric.ec import generate_private_key, SECP256R1
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    with Session(engine) as session:
+        session.exec(text("""
+            CREATE TABLE IF NOT EXISTS pushsubscription (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_id INTEGER NOT NULL REFERENCES profile(id),
+                endpoint TEXT NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                created_at DATETIME
+            )
+        """))
+        session.commit()
+
+        row = session.exec(text("SELECT value FROM app_config WHERE key='vapid_private'")).first()
+        if row:
+            _vapid_state["private_b64url"] = row[0]
+            pub_row = session.exec(text("SELECT value FROM app_config WHERE key='vapid_public'")).first()
+            _vapid_state["public_b64url"] = pub_row[0] if pub_row else None
+        else:
+            sk = generate_private_key(SECP256R1())
+            raw_priv = sk.private_numbers().private_value.to_bytes(32, 'big')
+            priv_b64 = base64.urlsafe_b64encode(raw_priv).decode().rstrip('=')
+            pub_bytes = sk.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+            pub_b64 = base64.urlsafe_b64encode(pub_bytes).decode().rstrip('=')
+            session.execute(text("INSERT INTO app_config (key, value) VALUES (:k, :v)"), {"k": "vapid_private", "v": priv_b64})
+            session.execute(text("INSERT INTO app_config (key, value) VALUES (:k, :v)"), {"k": "vapid_public", "v": pub_b64})
+            session.commit()
+            _vapid_state["private_b64url"] = priv_b64
+            _vapid_state["public_b64url"] = pub_b64
+
 
 # ─────────────────────────────────────────────
 # Utility
@@ -159,6 +197,100 @@ async def auth_change_password(request: Request):
         session.commit()
     _auth_state["password_hash"] = new_hash
     return {"token": _auth.create_access_token(_auth_state["jwt_secret"])}
+
+
+# ─────────────────────────────────────────────
+# Web Push (VAPID)
+# ─────────────────────────────────────────────
+
+@app.get("/api/push/vapid-public-key")
+def push_vapid_key():
+    """Return the VAPID public key so the client can create a push subscription."""
+    return {"publicKey": _vapid_state.get("public_b64url")}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request):
+    """Store or update a push subscription for a profile."""
+    body = await request.json()
+    profile_id = body.get("profileId")
+    endpoint = body.get("endpoint")
+    p256dh = body.get("p256dh")
+    auth = body.get("auth")
+    if not all([profile_id, endpoint, p256dh, auth]):
+        return JSONResponse({"detail": "Missing fields"}, status_code=422)
+    with Session(engine) as session:
+        existing = session.exec(
+            select(PushSubscription).where(PushSubscription.profile_id == profile_id)
+        ).first()
+        if existing:
+            existing.endpoint = endpoint
+            existing.p256dh = p256dh
+            existing.auth = auth
+            session.add(existing)
+        else:
+            session.add(PushSubscription(
+                profile_id=profile_id, endpoint=endpoint, p256dh=p256dh, auth=auth
+            ))
+        session.commit()
+    return {"ok": True}
+
+
+@app.post("/api/push/schedule")
+async def push_schedule(request: Request):
+    """Schedule a Web Push notification after delay_ms milliseconds."""
+    body = await request.json()
+    profile_id = body.get("profileId")
+    delay_ms = int(body.get("delayMs", 0))
+    title = body.get("title", "lifty")
+    msg_body = body.get("body", "Rest done — time to lift!")
+
+    key = f"rest-{profile_id}"
+
+    # Cancel any previous task for this slot
+    if key in _push_tasks and not _push_tasks[key].done():
+        _push_tasks[key].cancel()
+
+    async def _send():
+        try:
+            await asyncio.sleep(delay_ms / 1000)
+            with Session(engine) as session:
+                sub = session.exec(
+                    select(PushSubscription).where(PushSubscription.profile_id == profile_id)
+                ).first()
+                if not sub:
+                    return
+            from pywebpush import webpush, WebPushException
+            webpush(
+                subscription_info={
+                    "endpoint": sub.endpoint,
+                    "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+                },
+                data=json.dumps({"title": title, "body": msg_body}),
+                vapid_private_key=_vapid_state["private_b64url"],
+                vapid_claims={"sub": "mailto:lifty@lifty.app"},
+            )
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            print(f"[push] send error: {exc}")
+        finally:
+            _push_tasks.pop(key, None)
+
+    _push_tasks[key] = asyncio.create_task(_send())
+    return {"ok": True}
+
+
+@app.post("/api/push/cancel")
+async def push_cancel(request: Request):
+    """Cancel a pending push notification for a profile."""
+    body = await request.json()
+    profile_id = body.get("profileId")
+    key = f"rest-{profile_id}"
+    if key in _push_tasks and not _push_tasks[key].done():
+        _push_tasks[key].cancel()
+        _push_tasks.pop(key, None)
+    return {"ok": True}
 
 
 # ─────────────────────────────────────────────

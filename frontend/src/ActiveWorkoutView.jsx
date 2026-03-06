@@ -1,7 +1,7 @@
 import React from "react"
 import { Check, CheckCircle2, Dumbbell, Flag, Lock, Timer, TrendingUp, Trophy } from "lucide-react"
 import { fmtWeight, parseWeight, playDing, IconX, MiniMarkdown } from "./utils"
-import { getExerciseLastSets, getExerciseHistory } from "./api"
+import { getExerciseLastSets, getExerciseHistory, subscribePush, schedulePush, cancelPush } from "./api"
 
 export default function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true, prs = [], liquidGlass = false, animationsEnabled = true }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
@@ -72,6 +72,13 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     typeof Notification !== 'undefined' ? Notification.permission : 'unavailable'
   )
 
+  // Subscribe to web push if permission already granted (handles app updates)
+  React.useEffect(() => {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      subscribePush(workout?.profile_id).catch(() => {})
+    }
+  }, [workout?.profile_id])
+
   async function openHistory(exId, exName) {
     setHistorySheet({ exId, name: exName, data: null })
     setHistoryLoading(true)
@@ -106,11 +113,20 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     setRestLeft(dur)
     setRestRunning(true)
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission().then(p => setNotifPerm(p)).catch(() => {})
+      Notification.requestPermission().then(p => {
+        setNotifPerm(p)
+        if (p === 'granted') subscribePush(workout?.profile_id).catch(() => {})
+      }).catch(() => {})
     }
     scheduleSwNotif(dur * 1000)
+    schedulePush(workout?.profile_id, dur * 1000, 'lifty', 'Rest done — time to lift!')
   }
-  function stopRestTimer() { setRestLeft(null); setRestRunning(false); cancelSwNotif() }
+  function stopRestTimer() {
+    setRestLeft(null)
+    setRestRunning(false)
+    cancelSwNotif()
+    cancelPush(workout?.profile_id)
+  }
 
   const exerciseIds = [...new Set(sessionSets.map(s => s.exercise_id))]
   if (selectedExId && !exerciseIds.includes(selectedExId)) exerciseIds.push(selectedExId)
@@ -156,15 +172,13 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     if (!restRunning || !restEndRef.current) return
 
     function finish() {
-      // Stop the timer display immediately — don't gate on async audio
+      // Page is alive so cancel both server push and SW timeout — ding handles it
+      cancelPush(workout?.profile_id)
+      cancelSwNotif()
       setRestLeft(null)
       setRestRunning(false)
       if (navigator.vibrate) navigator.vibrate([300, 100, 300])
-      // Play audio async; only cancel SW notification if page audio succeeds
-      // (otherwise the SW notification fires as fallback alarm)
-      if (dingEnabled) {
-        playDing().then(played => { if (played) cancelSwNotif() }).catch(() => {})
-      }
+      if (dingEnabled) playDing().catch(() => {})
     }
 
     // Tick every 250ms — recomputes from absolute end time, handles finish itself

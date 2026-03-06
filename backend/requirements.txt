@@ -4,3 +4,4 @@ sqlmodel==0.0.8
 prometheus-client==0.16.0
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
+pywebpush==1.14.1

@@ -266,3 +266,63 @@ export async function getExerciseHistory(exerciseId, profileId, limit = 30) {
   const res = await authFetch(base + `/api/exercises/${exerciseId}/history?${q}`)
   return res.json()
 }
+
+// ── Web Push ──
+
+export async function getPushVapidKey() {
+  const res = await authFetch(base + '/api/push/vapid-public-key')
+  const data = await res.json()
+  return data.publicKey
+}
+
+export async function subscribePush(profileId) {
+  if (!('PushManager' in window) || !navigator.serviceWorker) return false
+  try {
+    const publicKey = await getPushVapidKey()
+    if (!publicKey) return false
+    const reg = await navigator.serviceWorker.ready
+    // Convert base64url to Uint8Array for applicationServerKey
+    const padding = '='.repeat((4 - publicKey.length % 4) % 4)
+    const base64 = (publicKey + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const rawKey = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: rawKey,
+    })
+    const json = sub.toJSON()
+    await authFetch(base + '/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profileId,
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
+      }),
+    })
+    return true
+  } catch (e) {
+    console.warn('[push] subscribe failed', e)
+    return false
+  }
+}
+
+export async function schedulePush(profileId, delayMs, title, body) {
+  try {
+    await authFetch(base + '/api/push/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileId, delayMs, title, body }),
+    })
+  } catch (_) {}
+}
+
+export async function cancelPush(profileId) {
+  try {
+    await authFetch(base + '/api/push/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileId }),
+    })
+  } catch (_) {}
+}

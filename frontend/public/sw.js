@@ -118,6 +118,27 @@ self.addEventListener('message', e => {
   }
 })
 
+// ── Web Push: fired by the server when the screen is locked ───────────────
+self.addEventListener('push', e => {
+  let title = 'lifty'
+  let body = 'Rest done — time to lift!'
+  try {
+    const data = e.data.json()
+    if (data.title) title = data.title
+    if (data.body) body = data.body
+  } catch (_) {}
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: '/apple-touch-icon.png',
+      badge: '/apple-touch-icon.png',
+      tag: 'rest-timer',
+      renotify: true,
+      silent: false,
+    })
+  )
+})
+
 // ── Notification tap → focus / open app ───────────────────────────────────
 self.addEventListener('notificationclick', e => {
   e.notification.close()
