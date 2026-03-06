@@ -29,7 +29,7 @@ REQUEST_COUNTER = Counter("lifty_requests_total", "Total HTTP requests", ["metho
 # ── Instance-level auth state (populated during startup) ──
 _auth_state: dict = {"enabled": False, "jwt_secret": "dev-only", "password_hash": None}
 
-_UNPROTECTED_PATHS = {"/health", "/metrics", "/api/auth/status", "/api/auth/login"}
+_UNPROTECTED_PATHS = {"/health", "/metrics", "/api/auth/status", "/api/auth/login", "/api/push/vapid-public-key"}
 
 
 @app.middleware("http")

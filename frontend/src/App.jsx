@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useTransition } from 'react'
+import React, { useEffect, useState, useTransition, useRef } from 'react'
 import { listExercises, createExercise, updateExercise, deleteExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory, authStatus, authLogin, authChangePassword } from './api'
 import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, CheckCircle2, Flame, TrendingUp } from 'lucide-react'
 import { fmtWeight, parseWeight, playDing, IconDownload, IconUpload, IconCheck, IconX, IconXCircle, MiniMarkdown } from './utils'
@@ -31,7 +31,10 @@ export default function App() {
   const [liquidGlass, setLiquidGlass] = useState(() => localStorage.getItem('liquidGlass') === 'true')
   const [navStyle, setNavStyle] = useState(() => localStorage.getItem('navStyle') || 'frosted')
   const [pendingTab, setPendingTab] = useState(null)
+  const [tabSlideDir, setTabSlideDir] = useState(null) // 'left' | 'right' | null
   const [, startTabTransition] = useTransition()
+  const TAB_ORDER = ['home', 'exercises', 'history', 'progress']
+  const swipeTouchRef = useRef(null)
   const setTab = t => {
     localStorage.setItem('activeTab', t)
     setPendingTab(t)
@@ -39,6 +42,25 @@ export default function App() {
       setActiveTab(t)
       setPendingTab(null)
     })
+  }
+  function handleSwipeStart(e) {
+    if (e.touches.length !== 1) return
+    swipeTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+  function handleSwipeEnd(e) {
+    if (!swipeTouchRef.current) return
+    const dx = e.changedTouches[0].clientX - swipeTouchRef.current.x
+    const dy = e.changedTouches[0].clientY - swipeTouchRef.current.y
+    swipeTouchRef.current = null
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    const idx = TAB_ORDER.indexOf(activeTab)
+    if (dx < 0 && idx < TAB_ORDER.length - 1) {
+      setTabSlideDir('left')
+      setTab(TAB_ORDER[idx + 1])
+    } else if (dx > 0 && idx > 0) {
+      setTabSlideDir('right')
+      setTab(TAB_ORDER[idx - 1])
+    }
   }
   const [sessionWorkout, setSessionWorkout] = useState(null)
   const [timerStart, setTimerStart] = useState(null)
@@ -557,10 +579,10 @@ export default function App() {
         </button>
       </header>
 
-      <main className="content">
+      <main className="content" onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
         {/* ─── HOME ─── */}
         {activeTab === 'home' && (
-          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
+          <section style={{ animation: tabSlideDir === 'left' ? 'tabSlideInLeft 0.22s ease both' : tabSlideDir === 'right' ? 'tabSlideInRight 0.22s ease both' : 'tabFadeIn 0.18s ease both' }}>
             {inProgress && (() => {
               const h = Math.floor(elapsed / 3600)
               const m = Math.floor((elapsed % 3600) / 60)
@@ -645,7 +667,7 @@ export default function App() {
 
         {/* ─── EXERCISES ─── */}
         {activeTab === 'exercises' && (
-          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
+          <section style={{ animation: tabSlideDir === 'left' ? 'tabSlideInLeft 0.22s ease both' : tabSlideDir === 'right' ? 'tabSlideInRight 0.22s ease both' : 'tabFadeIn 0.18s ease both' }}>
             {/* Search bar */}
             <div className="card" style={{ paddingBottom: 14 }}>
               <input
@@ -752,7 +774,7 @@ export default function App() {
 
         {/* ─── HISTORY ─── */}
         {activeTab === 'history' && (
-          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
+          <section style={{ animation: tabSlideDir === 'left' ? 'tabSlideInLeft 0.22s ease both' : tabSlideDir === 'right' ? 'tabSlideInRight 0.22s ease both' : 'tabFadeIn 0.18s ease both' }}>
             {workouts.length === 0 ? (
               <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
                 <div style={{ fontSize: '2.8rem', marginBottom: 14 }}>📋</div>
@@ -841,7 +863,7 @@ export default function App() {
 
         {/* ─── PROGRESS ─── */}
         {activeTab === 'progress' && (
-          <section style={{ animation: 'tabFadeIn 0.18s ease both' }}>
+          <section style={{ animation: tabSlideDir === 'left' ? 'tabSlideInLeft 0.22s ease both' : tabSlideDir === 'right' ? 'tabSlideInRight 0.22s ease both' : 'tabFadeIn 0.18s ease both' }}>
             {/* Activity heatmap */}
             <div className="card">
               <p className="section-heading">Activity — last 26 weeks</p>

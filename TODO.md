@@ -70,8 +70,41 @@
 - **Frontend Vitest tests** — no component tests exist; add Vitest + React Testing Library; smoke tests for `fmtWeight`, `parseWeight`, set-log flow would catch regressions
 
 ---
-## Changelog (6 Mar 2026)
-- **Per-exercise 1RM chart** — tap any PR row in the Progress tab → BottomSheet with pure SVG line chart (accent fill + polyline, date labels) + recent-sessions table (date · sets · top weight · est. 1RM); fetches `GET /api/exercises/{id}/history?limit=60`; `TrendingUp` icon hint on PR rows
+## Changelog (6 Mar 2026) — session 2
+
+### Completed
+- **Notification permission UI** — rest timer shows "Tap to enable alarm notification" (tappable) when `'default'`, "Notifications blocked — enable in browser settings" when `'denied'`; `notifPerm` state seeded from `Notification.permission` on mount, updated reactively
+- **Short timer dev override** — `docker-compose.override.yml` (gitignored) passes `VITE_SHORT_TIMER=1` build arg → rest timer shows 3/5/8/10s buttons instead of 60/90/120/180s; `docker-compose.override.yml` auto-merged by Docker Compose, no `-f` flag needed
+- **`playDing()` now async** — `await ctx.resume()` before scheduling tones; `finish()` calls it fire-and-forget, state updates immediately so timer doesn't freeze at 1s
+- **VAPID Web Push (partial)** — full implementation committed to `dev` (commit `0270dcb`):
+  - `pywebpush==1.14.1` added to `requirements.txt`
+  - VAPID key pair generated on first backend startup, stored in `app_config` table, persisted across restarts
+  - `PushSubscription` model + DB table (profile_id, endpoint, p256dh, auth)
+  - `GET /api/push/vapid-public-key` — returns public key
+  - `POST /api/push/subscribe` — store/update subscription
+  - `POST /api/push/schedule` — creates `asyncio.Task` that sleeps then calls `pywebpush.webpush()`
+  - `POST /api/push/cancel` — cancels the pending task
+  - SW: `push` event handler fires `showNotification` from server-sent push
+  - Frontend: `subscribePush`, `schedulePush`, `cancelPush` in `api.js`; wired into `startRestTimer` / `stopRestTimer` / `finish()` in `ActiveWorkoutView.jsx`; subscribes on mount if already granted
+
+### 🔴 Known bug — not yet fixed / committed
+**`/api/push/vapid-public-key` returns 401** — endpoint is behind the auth middleware. `subscribePush()` silently fails, nothing is ever stored, push never fires.
+
+**Fix** (already applied locally, NOT committed/pushed — commit this first):
+```python
+# backend/main.py line ~28
+_UNPROTECTED_PATHS = {"/health", "/metrics", "/api/auth/status", "/api/auth/login", "/api/push/vapid-public-key"}
+```
+
+### To continue web push debugging
+1. Commit + push the unprotected-path fix above
+2. Deploy to `lifty.bndct.dev`, verify `GET /api/push/vapid-public-key` returns `{"publicKey": "..."}` without auth
+3. Open PWA from Home Screen on iPhone, start a timer — check browser console for `[push] subscribe failed` errors
+4. Lock screen, wait for timer to expire — check if notification appears
+5. If not: check backend container logs for `[push] send error: ...`
+   - Most likely failure: `pywebpush` VAPID key format — it may expect PEM not raw base64url; try switching to `py-vapid` to generate keys in the right format
+   - Second likely failure: `vapid_claims` `sub` must be a real mailto or https URL the push service can reach
+ — tap any PR row in the Progress tab → BottomSheet with pure SVG line chart (accent fill + polyline, date labels) + recent-sessions table (date · sets · top weight · est. 1RM); fetches `GET /api/exercises/{id}/history?limit=60`; `TrendingUp` icon hint on PR rows
 - **Service Worker** (`public/sw.js`) — offline-first caching: static assets cache-first, API network-first with stale-cache fallback, navigation network-first; background rest-timer: page posts `SCHEDULE_NOTIFICATION`/`CANCEL_NOTIFICATION`, SW fires `showNotification` via `setTimeout` wrapped in `e.waitUntil`; `notificationclick` focuses existing window or opens `/`; SW works on non-EU iOS 16.4+ for locked-screen rest-timer ding
 - **SW update → auto-reload** (`main.jsx`) — `updatefound` + `statechange` listener reloads all open clients when a new SW version activates, so deploys propagate immediately
 - **nginx cache strategy** — `index.html` + `sw.js` served with `no-store, no-cache, must-revalidate`; hashed JS/CSS/assets served with `public, immutable` (1 year); `sw.js` exempt from the broad `.js` immutable rule via an earlier `location = /sw.js` block
