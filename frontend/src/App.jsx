@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useTransition, useRef } from 'react'
 import { listExercises, createExercise, updateExercise, deleteExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, reassignExercise, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory, authStatus, authLogin, authChangePassword } from './api'
-import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, CheckCircle2, Flame, TrendingUp } from 'lucide-react'
+import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Plus, Trash2, Timer, CheckCircle2, Flame, TrendingUp } from 'lucide-react'
 import { fmtWeight, parseWeight, playDing, IconDownload, IconUpload, IconCheck, IconX, IconXCircle, MiniMarkdown } from './utils'
 import BottomSheet from './BottomSheet'
 import ActiveWorkoutView from './ActiveWorkoutView'
@@ -110,6 +110,7 @@ export default function App() {
   const [showTemplateSheet, setShowTemplateSheet] = useState(false)
 
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
+  const BODY_PART_COLORS = { Chest: '#e06c75', Back: '#61afef', Legs: '#98c379', Shoulders: '#c678dd', Arms: '#e5c07b', Core: '#56b6c2', Cardio: '#ff9580', 'Full Body': '#bd93f9', Other: '#abb2bf' }
   const EQUIPMENT = ['Bodyweight', 'Barbell', 'Dumbbell', 'Machine', 'Cable', 'Kettlebell', 'Trap Bar', 'EZ Bar', 'TRX', 'Other']
 
   useEffect(() => {
@@ -194,7 +195,7 @@ export default function App() {
 
   const [exSearch, setExSearch] = useState('')
   const [deleteExercisePending, setDeleteExercisePending] = useState(null) // exercise object awaiting confirm
-  const [editingExerciseId, setEditingExerciseId] = useState(null)
+  const [exModal, setExModal] = useState(null) // null | { mode: 'create' } | { mode: 'edit', ex }
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
   const [editBodyPart, setEditBodyPart] = useState('')
@@ -215,14 +216,20 @@ export default function App() {
   function utcMs(s) { return s ? new Date(s.endsWith('Z') ? s : s + 'Z').getTime() : null }
 
   function startEditExercise(ex) {
-    setEditingExerciseId(ex.id); setEditName(ex.name || ''); setEditDesc(ex.description || ''); setEditBodyPart(ex.body_part || ''); setEditEquipment(ex.equipment || '')
+    setEditName(ex.name || ''); setEditDesc(ex.description || ''); setEditBodyPart(ex.body_part || ''); setEditEquipment(ex.equipment || '')
+    setExModal({ mode: 'edit', ex })
   }
   function cancelEditExercise() {
-    setEditingExerciseId(null); setEditName(''); setEditDesc(''); setEditBodyPart(''); setEditEquipment('')
+    setExModal(null); setEditName(''); setEditDesc(''); setEditBodyPart(''); setEditEquipment('')
   }
   async function handleSaveExercise() {
-    if (!editingExerciseId || !editName.trim()) return
-    await updateExercise(editingExerciseId, { name: editName, description: editDesc, body_part: editBodyPart, equipment: editEquipment })
+    if (!exModal?.ex?.id || !editName.trim()) return
+    await updateExercise(exModal.ex.id, { name: editName, description: editDesc, body_part: editBodyPart, equipment: editEquipment })
+    cancelEditExercise(); fetchList()
+  }
+  async function handleCreateExercise() {
+    if (!editName.trim()) return
+    await createExercise({ name: editName.trim(), description: editDesc.trim() || null, body_part: editBodyPart || null, equipment: editEquipment || null, profile_id: activeProfile?.id })
     cancelEditExercise(); fetchList()
   }
   async function handleDeleteExercise(ex) {
@@ -679,8 +686,16 @@ export default function App() {
         {/* ─── EXERCISES ─── */}
         {activeTab === 'exercises' && (
           <section style={{ animation: tabSlideDir === 'left' ? 'tabSlideInLeft 0.22s ease both' : tabSlideDir === 'right' ? 'tabSlideInRight 0.22s ease both' : 'tabFadeIn 0.18s ease both' }}>
-            {/* Search bar */}
+            {/* Search + filter header */}
             <div className="card" style={{ paddingBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Exercises</span>
+                <button type="button" className="primary"
+                  style={{ padding: '6px 14px', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 5, borderRadius: 20 }}
+                  onClick={() => { setEditName(''); setEditDesc(''); setEditBodyPart(''); setEditEquipment(''); setExModal({ mode: 'create' }) }}>
+                  <Plus size={15} /> New
+                </button>
+              </div>
               <input
                 placeholder="Search exercises…"
                 value={exSearch}
@@ -730,41 +745,23 @@ export default function App() {
                         <ul className="list" style={{ margin: 0, padding: '0 18px' }}>
                           {exerciseGroups[group].map(ex => (
                             <li key={ex.id} style={{ padding: '10px 0' }}>
-                              {editingExerciseId === ex.id ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 4 }}>
-                                  <input value={editName} onChange={e => setEditName(e.target.value)} />
-                                  <input value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Description (optional)" />
-                                  <select value={editBodyPart} onChange={e => setEditBodyPart(e.target.value)}>
-                                    <option value="">Body part (optional)</option>
-                                    {BODY_PARTS.map(p => <option key={p} value={p}>{p}</option>)}
-                                  </select>
-                                  <select value={editEquipment} onChange={e => setEditEquipment(e.target.value)}>
-                                    <option value="">Equipment (optional)</option>
-                                    {EQUIPMENT.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-                                  </select>
-                                  <div className="row">
-                                    <button type="button" onClick={cancelEditExercise}>Cancel</button>
-                                    <button type="button" className="primary" onClick={handleSaveExercise}>Save</button>
-                                  </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{ex.name}</div>
+                                  {(ex.body_part || ex.equipment) && (
+                                    <div style={{ display: 'flex', gap: 5, marginTop: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+                                      {ex.body_part && (
+                                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '1px 8px', borderRadius: 20, background: `color-mix(in srgb, ${BODY_PART_COLORS[ex.body_part] || '#abb2bf'} 18%, var(--bg-secondary))`, color: BODY_PART_COLORS[ex.body_part] || 'var(--muted)' }}>{ex.body_part}</span>
+                                      )}
+                                      {ex.equipment && <span className="muted small">{ex.equipment}</span>}
+                                    </div>
+                                  )}
+                                  {ex.description ? <div className="muted small" style={{ marginTop: 2, fontStyle: 'italic' }}>{ex.description}</div> : null}
                                 </div>
-                              ) : (
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600 }}>{ex.name}</div>
-                                    {ex.equipment ? <div className="muted small">{ex.equipment}</div> : null}
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                                    <button type="button" onClick={() => startEditExercise(ex)}
-                                      style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.02em', fontFamily: 'inherit' }}
-                                      aria-label="Edit">Edit</button>
-                                    {ex.profile_id != null && (
-                                      <button type="button" onClick={() => handleDeleteExercise(ex)}
-                                        style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--danger)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.02em', fontFamily: 'inherit' }}
-                                        aria-label="Delete">Delete</button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
+                                <button type="button" onClick={() => startEditExercise(ex)}
+                                  style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.02em', fontFamily: 'inherit', flexShrink: 0 }}
+                                  aria-label="Edit">Edit</button>
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -774,12 +771,64 @@ export default function App() {
                 })}
             </div>
 
-            {/* Add new exercise — collapsed behind a button by default */}
-            <AddExerciseForm
-              BODY_PARTS={BODY_PARTS}
-              EQUIPMENT={EQUIPMENT}
-              onAdd={async (payload) => { await createExercise({ ...payload, profile_id: activeProfile?.id }); fetchList() }}
-            />
+            {/* ── Exercise create/edit modal ── */}
+            {exModal && (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+                onClick={() => cancelEditExercise()}>
+                <div className="glass-overlay" style={{ position: 'absolute', inset: 0 }} />
+                <div className="glass-panel" style={{ position: 'relative', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', maxHeight: '90dvh', overflowY: 'auto' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ textAlign: 'center', padding: '10px 0 0' }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>{exModal.mode === 'create' ? 'New Exercise' : 'Edit Exercise'}</span>
+                    <button onClick={() => cancelEditExercise()}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
+                  </div>
+                  <div style={{ padding: '8px 18px calc(24px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <input
+                      placeholder="Name *"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      autoFocus
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                    <input
+                      placeholder="Description (optional)"
+                      value={editDesc}
+                      onChange={e => setEditDesc(e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={editBodyPart} onChange={e => setEditBodyPart(e.target.value)} style={{ flex: 1 }}>
+                        <option value="">Body part…</option>
+                        {BODY_PARTS.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <select value={editEquipment} onChange={e => setEditEquipment(e.target.value)} style={{ flex: 1 }}>
+                        <option value="">Equipment…</option>
+                        {EQUIPMENT.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <button type="button" style={{ flex: 1 }} onClick={() => cancelEditExercise()}>Cancel</button>
+                      <button type="button" className="primary" style={{ flex: 2 }}
+                        onClick={exModal.mode === 'create' ? handleCreateExercise : handleSaveExercise}
+                        disabled={!editName.trim()}>
+                        {exModal.mode === 'create' ? 'Add Exercise' : 'Save Changes'}
+                      </button>
+                    </div>
+                    {exModal.mode === 'edit' && exModal.ex?.profile_id != null && (
+                      <button type="button"
+                        style={{ color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)', borderRadius: 10, padding: '9px 0', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 }}
+                        onClick={() => { const ex = exModal.ex; cancelEditExercise(); handleDeleteExercise(ex) }}>
+                        Delete Exercise
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -1828,62 +1877,7 @@ function DangerZone({ profileId, onDeleted }) {
   )
 }
 
-function AddExerciseForm({ BODY_PARTS, EQUIPMENT, onAdd }) {
-  const [open, setOpen] = React.useState(false)
-  const [name, setName] = React.useState('')
-  const [desc, setDesc] = React.useState('')
-  const [bodyPart, setBodyPart] = React.useState('')
-  const [equipment, setEquipment] = React.useState('')
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!name.trim()) return
-    await onAdd({ name: name.trim(), description: desc.trim() || null, body_part: bodyPart || null, equipment: equipment || null })
-    setName(''); setDesc(''); setBodyPart(''); setEquipment(''); setOpen(false)
-  }
-
-  if (!open) return (
-    <button
-      type="button"
-      className="primary"
-      style={{ width: '100%', marginTop: 12 }}
-      onClick={() => setOpen(true)}
-    >＋ Add Exercise</button>
-  )
-
-  return (
-    <form onSubmit={handleSubmit} className="card" style={{ marginTop: 12 }}>
-      <p className="section-heading" style={{ marginTop: 0 }}>New Exercise</p>
-      <input
-        placeholder="Name *"
-        value={name}
-        onChange={e => setName(e.target.value)}
-        required
-        style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8 }}
-      />
-      <input
-        placeholder="Description (optional)"
-        value={desc}
-        onChange={e => setDesc(e.target.value)}
-        style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8 }}
-      />
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <select value={bodyPart} onChange={e => setBodyPart(e.target.value)} style={{ flex: 1 }}>
-          <option value="">Body part…</option>
-          {BODY_PARTS.filter(p => p !== 'All').map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select value={equipment} onChange={e => setEquipment(e.target.value)} style={{ flex: 1 }}>
-          <option value="">Equipment…</option>
-          {EQUIPMENT.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-        </select>
-      </div>
-      <div className="row">
-        <button type="button" onClick={() => setOpen(false)}>Cancel</button>
-        <button type="submit" className="primary">Add</button>
-      </div>
-    </form>
-  )
-}
 
 function WorkoutDetailSheet({ workout, detail, exercises, unit, onClose, onDelete }) {
   const COLORS = ['#e06c75','#61afef','#98c379','#c678dd','#e5c07b','#56b6c2','#ff9580','#bd93f9','#abb2bf']
