@@ -77,6 +77,8 @@ export default function App() {
   const [celebrationData, setCelebrationData] = useState(null)
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0)
   const [selectedDate, setSelectedDate] = useState(null)
+  const [historyLimit, setHistoryLimit] = useState(10)
+  const [prsLimit, setPrsLimit] = useState(8)
 
   // ── Instance auth ──
   const [authEnabled, setAuthEnabled] = useState(false)
@@ -861,29 +863,37 @@ export default function App() {
                 {calendarDays.map((day, idx) => {
                   if (!day) return <div key={`e-${idx}`} />
                   const key = dateKey(new Date(monthStart.getFullYear(), monthStart.getMonth(), day))
-                  const count = (workoutsByDate[key] || []).length
+                  const dayWorkouts = workoutsByDate[key] || []
+                  const hasWorkout = dayWorkouts.some(w => !w.is_rest_day && w.status === 'finished')
+                  const hasRestDay = dayWorkouts.some(w => w.is_rest_day)
+                  const count = dayWorkouts.length
                   const isSelected = selectedDate === key
                   const isToday = key === todayKey
+                  const dotColor = isSelected ? '#fff' : hasWorkout ? 'var(--accent)' : 'var(--success)'
                   return (
                     <button key={key} onClick={() => setSelectedDate(isSelected ? null : key)}
                       style={{
                         padding: '6px 2px', borderRadius: 8, textAlign: 'center', border: 'none',
-                        outline: isSelected ? '2px solid var(--accent)' : isToday ? '1px solid var(--accent)' : 'none',
-                        background: isSelected ? 'var(--accent)' : count ? 'var(--bg-secondary)' : 'transparent',
+                        outline: isSelected ? `2px solid ${hasRestDay && !hasWorkout ? 'var(--success)' : 'var(--accent)'}` : isToday ? `1px solid ${hasRestDay && !hasWorkout ? 'var(--success)' : 'var(--accent)'}` : 'none',
+                        background: isSelected ? (hasRestDay && !hasWorkout ? 'var(--success)' : 'var(--accent)') : count ? 'var(--bg-secondary)' : 'transparent',
                         color: isSelected ? '#fff' : 'var(--text)',
                         minHeight: 40, cursor: 'pointer',
                       }}>
                       <div style={{ fontWeight: isToday ? 700 : 400, fontSize: '0.9rem' }}>{day}</div>
-                      {count ? <div style={{ width: 5, height: 5, borderRadius: '50%', background: isSelected ? '#fff' : 'var(--accent)', margin: '2px auto 0' }} /> : null}
+                      {(hasWorkout || hasRestDay) ? <div style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, margin: '2px auto 0' }} /> : null}
                     </button>
                   )
                 })}
               </div>
               {selectedDate && (
-                <button onClick={() => setSelectedDate(null)} style={{ marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '0.82rem', textDecoration: 'underline', padding: 0 }}>
+                <button onClick={() => { setSelectedDate(null); setHistoryLimit(10) }} style={{ marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '0.82rem', textDecoration: 'underline', padding: 0 }}>
                   Clear filter
                 </button>
               )}
+              <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }}/>Workout</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', flexShrink: 0 }}/>Rest day</div>
+              </div>
             </div>
 
             {/* Workout list — filtered by selected day, or all */}
@@ -894,11 +904,13 @@ export default function App() {
                 </p>
               )}
               {(() => {
-                const list = selectedDate
+                const allList = selectedDate
                   ? (workoutsByDate[selectedDate] || [])
                   : [...workouts].sort((a, b) => new Date(b.date) - new Date(a.date))
-                if (list.length === 0) return <p className="muted">{selectedDate ? 'No workouts on this day.' : 'No workouts yet.'}</p>
+                const list = selectedDate ? allList : allList.slice(0, historyLimit)
+                if (allList.length === 0) return <p className="muted">{selectedDate ? 'No workouts on this day.' : 'No workouts yet.'}</p>
                 return (
+                  <>
                   <ul className="list">
                     {list.map((w, idx) => (
                       <li key={w.id} style={{ padding: '14px 0', animation: 'slideUp 0.32s ease both', animationDelay: `${Math.min(idx, 10) * 50}ms` }}>
@@ -919,6 +931,13 @@ export default function App() {
                       </li>
                     ))}
                   </ul>
+                  {!selectedDate && allList.length > historyLimit && (
+                    <button onClick={() => setHistoryLimit(l => l + 10)}
+                      style={{ width: '100%', marginTop: 8, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer' }}>
+                      Show more ({allList.length - historyLimit} remaining)
+                    </button>
+                  )}
+                  </>
                 )
               })()}
             </div>
@@ -935,19 +954,25 @@ export default function App() {
               {(() => {
                 const cellSize = 10, gap = 2, cols = 26
                 const todayD = new Date(); todayD.setHours(0,0,0,0)
-                const gridStart = new Date(todayD)
-                gridStart.setDate(gridStart.getDate() - (cols * 7 - 1))
-                const dow = (gridStart.getDay() + 6) % 7
-                gridStart.setDate(gridStart.getDate() - dow)
+                // Always make the last column the week containing today
+                const todayDow = (todayD.getDay() + 6) % 7  // Mon=0 … Sun=6
+                const weekStart = new Date(todayD)
+                weekStart.setDate(weekStart.getDate() - todayDow)
+                const gridStart = new Date(weekStart)
+                gridStart.setDate(gridStart.getDate() - (cols - 1) * 7)
                 const dayMap = {}
                 workouts.forEach(w => {
                   const key = dateKey(parseDate(w.date))
-                  if (w.is_rest_day) { if (!dayMap[key]) dayMap[key] = 'rest' }
-                  else if (w.status === 'finished') dayMap[key] = 'workout'
+                  if (w.is_rest_day) { if (dayMap[key] !== 'workout') dayMap[key] = 'rest' }
+                  else if (w.status === 'finished') { dayMap[key] = 'workout' }
                 })
+                const rootStyle = getComputedStyle(document.documentElement)
+                const colorWorkout = rootStyle.getPropertyValue('--accent').trim() || '#f5c2e7'
+                const colorRest = rootStyle.getPropertyValue('--success').trim() || '#a6e3a1'
+                const colorEmpty = rootStyle.getPropertyValue('--bg-secondary').trim() || '#313244'
+                const colorToday = rootStyle.getPropertyValue('--text').trim() || '#cdd6f4'
                 const totalW = cols * (cellSize + gap) - gap
                 const totalH = 7 * (cellSize + gap) - gap
-                const todayKey2 = dateKey(todayD)
                 const cells = []
                 for (let col = 0; col < cols; col++) {
                   for (let row = 0; row < 7; row++) {
@@ -955,10 +980,10 @@ export default function App() {
                     d.setDate(d.getDate() + col * 7 + row)
                     const key = dateKey(d)
                     const isFuture = d > todayD
-                    const isToday = key === todayKey2
-                    const entry = isFuture ? null : dayMap[key]
-                    const fill = entry === 'workout' ? 'var(--accent)' : entry === 'rest' ? 'var(--success)' : 'var(--bg-secondary)'
-                    cells.push(<rect key={`${col}-${row}`} x={col*(cellSize+gap)} y={row*(cellSize+gap)} width={cellSize} height={cellSize} rx={2} fill={fill} opacity={isFuture ? 0.15 : 1} stroke={isToday ? 'var(--text)' : 'none'} strokeWidth={1.5} />)
+                    if (isFuture) { cells.push(<rect key={`${col}-${row}`} x={col*(cellSize+gap)} y={row*(cellSize+gap)} width={cellSize} height={cellSize} rx={2} fill={colorEmpty} opacity={0.3} />); continue }
+                    const entry = dayMap[key]
+                    const fill = entry === 'workout' ? colorWorkout : entry === 'rest' ? colorRest : colorEmpty
+                    cells.push(<rect key={`${col}-${row}`} x={col*(cellSize+gap)} y={row*(cellSize+gap)} width={cellSize} height={cellSize} rx={2} fill={fill} />)
                   }
                 }
                 return (
@@ -1199,32 +1224,52 @@ export default function App() {
                 <p className="muted">Loading…</p>
               ) : prs.length === 0 ? (
                 <p className="muted">No sets logged yet — finish a workout to see PRs.</p>
-              ) : prGroupKeys.map(group => (
-                <div key={group} style={{ marginBottom: 20 }}>
-                  <div className="group-label">{group}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {prsByPart[group].map(pr => (
-                      <div key={pr.exercise_id} className="pr-row" onClick={async () => {
-                        setExChartSheet({ exerciseId: pr.exercise_id, name: pr.name })
-                        setExChartData([])
-                        setExChartLoading(true)
-                        const data = await getExerciseHistory(pr.exercise_id, activeProfile.id, 60)
-                        setExChartData(data || [])
-                        setExChartLoading(false)
-                      }} style={{ cursor: 'pointer' }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{pr.name}</div>
-                          <div className="muted small">{pr.best_reps} reps × {fmtWeight(pr.best_weight, activeProfile.unit)}</div>
-                        </div>
-                        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                          <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--accent)' }}>{fmtWeight(pr.e1rm, activeProfile.unit)}</div>
-                          <div className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>est. 1RM <TrendingUp size={11} /></div>
+              ) : (
+                <>
+                {(() => {
+                  // Flatten all PRs in group order, slice, then re-group for display
+                  const allPrs = prGroupKeys.flatMap(g => prsByPart[g].map(pr => ({ ...pr, group: g })))
+                  const visible = allPrs.slice(0, prsLimit)
+                  const visibleGroups = prGroupKeys.filter(g => visible.some(pr => pr.group === g))
+                  return (
+                    <>
+                    {visibleGroups.map(group => (
+                      <div key={group} style={{ marginBottom: 20 }}>
+                        <div className="group-label">{group}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {visible.filter(pr => pr.group === group).map(pr => (
+                            <div key={pr.exercise_id} className="pr-row" onClick={async () => {
+                              setExChartSheet({ exerciseId: pr.exercise_id, name: pr.name })
+                              setExChartData([])
+                              setExChartLoading(true)
+                              const data = await getExerciseHistory(pr.exercise_id, activeProfile.id, 60)
+                              setExChartData(data || [])
+                              setExChartLoading(false)
+                            }} style={{ cursor: 'pointer' }}>
+                              <div>
+                                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{pr.name}</div>
+                                <div className="muted small">{pr.best_reps} reps × {fmtWeight(pr.best_weight, activeProfile.unit)}</div>
+                              </div>
+                              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                                <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--accent)' }}>{fmtWeight(pr.e1rm, activeProfile.unit)}</div>
+                                <div className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>est. 1RM <TrendingUp size={11} /></div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
-                  </div>
-                </div>
-              ))}
+                    {allPrs.length > prsLimit && (
+                      <button onClick={() => setPrsLimit(l => l + 8)}
+                        style={{ width: '100%', padding: '9px 0', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text)', fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer' }}>
+                        Show more ({allPrs.length - prsLimit} remaining)
+                      </button>
+                    )}
+                    </>
+                  )
+                })()}
+                </>
+              )}
             </div>
 
 
