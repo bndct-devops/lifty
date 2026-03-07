@@ -560,8 +560,8 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
                             onAnimationEnd={() => setLogPulseActive(false)}><Check size={18} strokeWidth={2.5} /></button>
                         </div>
                       )}
-                      {/* Plate calculator */}
-                      {isActive && plateCalc && (() => {
+                      {/* Plate calculator — barbell / trap bar / EZ bar only */}
+                      {isActive && plateCalc && /barbell|trap bar|ez bar/i.test(ex.equipment || '') && (() => {
                         const wKg = parseWeight(weight, unit)
                         if (!wKg || wKg <= 0) return null
                         const BAR_KG = unit === 'lbs' ? 20.4116 : 20

@@ -61,6 +61,7 @@
 - **CI: explicit frontend build job** — add `npm ci && npm run build` step before `build-and-push` for faster, cheaper feedback on broken JSX/imports (currently only caught inside the Docker build)
 
 ### UX / missing features
+- **Interactive charts (touch tooltips)** — SVG `onTouchMove`/`onMouseMove` handler computes nearest data point from touch X, renders floating tooltip bubble; covers bodyweight line, weekly volume bars, muscle donut, per-exercise 1RM line; no new dependency needed; pan/zoom out of scope
 - **JSON backup / restore** — full JSON dump of exercises + workouts + sets per profile; CSV export exists but can't be re-imported; needed for migrating between instances
 - **System theme auto-follow** — "System" option in theme picker reads `prefers-color-scheme` and maps to Light/Dark; single media query, no backend change
 - **Exercise picker: body part filter chips** — horizontal scrollable chip row (All / Chest / Back / …) above the list in the add-exercise bottom sheet; reuses existing filter logic from Exercises tab
