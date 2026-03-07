@@ -1,9 +1,9 @@
 import React from "react"
-import { Check, CheckCircle2, Dumbbell, Flag, Lock, Timer, TrendingUp, Trophy } from "lucide-react"
+import { Check, CheckCircle2, Dumbbell, Flag, Lock, Repeat2, Timer, TrendingUp, Trophy } from "lucide-react"
 import { fmtWeight, parseWeight, playDing, IconX, MiniMarkdown } from "./utils"
-import { getExerciseLastSets, getExerciseHistory, subscribePush, schedulePush, cancelPush } from "./api"
+import { getExerciseLastSets, getExerciseHistory, subscribePush, schedulePush, cancelPush, reassignExercise } from "./api"
 
-export default function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true, prs = [], liquidGlass = false, animationsEnabled = true }) {
+export default function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onReassign, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true, prs = [], liquidGlass = false, animationsEnabled = true }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
 
   const [, setTick] = React.useState(0)
@@ -51,6 +51,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     return null
   })
   const [showExPicker, setShowExPicker] = React.useState(false)
+  const [swapExId, setSwapExId] = React.useState(null) // non-null = swap mode: exercise id being replaced
   const [exSearch, setExSearch] = React.useState('')
   const [reps, setReps] = React.useState('')
   const [weight, setWeight] = React.useState('')
@@ -475,6 +476,10 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px 6px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                       <TrendingUp size={16} />
                     </button>
+                    <button type="button" title="Swap exercise" onClick={() => { setSwapExId(exId); setExSearch(''); setShowExPicker(true) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px 6px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      <Repeat2 size={16} />
+                    </button>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
                       <button type="button" onClick={() => moveExercise(exId, -1)} disabled={exIdx === 0}
                         style={{ background: 'none', border: 'none', cursor: exIdx === 0 ? 'default' : 'pointer', opacity: exIdx === 0 ? 0.2 : 0.6, padding: '2px 6px', lineHeight: 1, color: 'var(--text)', fontSize: '0.7rem' }}>
@@ -751,7 +756,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
       {/* Exercise picker bottom sheet */}
       {showExPicker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
-          onClick={() => { setShowExPicker(false); setExSearch('') }}>
+          onClick={() => { setShowExPicker(false); setExSearch(''); setSwapExId(null) }}>
           <div className="glass-overlay" style={{ position: 'absolute', inset: 0 }} />
           <div className="glass-panel" style={{ position: 'relative', borderRadius: '20px 20px 0 0', maxHeight: '85dvh', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}>
@@ -759,8 +764,8 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
               <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)', display: 'inline-block' }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
-              <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Add Exercise</span>
-              <button onClick={() => { setShowExPicker(false); setExSearch('') }}
+              <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>{swapExId !== null ? 'Swap Exercise' : 'Add Exercise'}</span>
+              <button onClick={() => { setShowExPicker(false); setExSearch(''); setSwapExId(null) }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 8px' }}>
@@ -770,7 +775,16 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
                   <div style={{ padding: '10px 0 4px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{group}</div>
                   {grouped[group].map(ex => (
                     <button key={ex.id}
-                      onClick={() => { activateExercise(ex.id); setShowExPicker(false); setExSearch('') }}
+                      onClick={async () => {
+                        if (swapExId !== null) {
+                          await onReassign?.(workout.id, swapExId, ex.id)
+                          setSwapExId(null)
+                        } else {
+                          activateExercise(ex.id)
+                        }
+                        setShowExPicker(false)
+                        setExSearch('')
+                      }}
                       style={{ display: 'block', width: '100%', textAlign: 'left', padding: '11px 12px', borderRadius: 8, border: 'none', background: exerciseIds.includes(ex.id) ? 'var(--bg-secondary)' : 'transparent', cursor: 'pointer', marginBottom: 2, fontSize: '0.95rem', color: 'var(--text)', fontFamily: 'inherit' }}>
                       {ex.name}
                       {ex.equipment ? <span style={{ marginLeft: 8, fontSize: '0.82rem', color: 'var(--muted)' }}>({ex.equipment})</span> : null}

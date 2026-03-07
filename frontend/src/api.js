@@ -184,6 +184,15 @@ export async function deleteSet(workoutId, setId) {
   await authFetch(base + `/api/workouts/${workoutId}/sets/${setId}`, { method: 'DELETE' })
 }
 
+export async function reassignExercise(workoutId, oldExerciseId, newExerciseId) {
+  const res = await authFetch(base + `/api/workouts/${workoutId}/reassign-exercise`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_exercise_id: oldExerciseId, new_exercise_id: newExerciseId }),
+  })
+  return res.json()
+}
+
 export async function getWorkoutDetail(id) {
   const res = await authFetch(base + `/api/workouts/${id}`)
   return res.json()

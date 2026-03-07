@@ -1026,6 +1026,31 @@ def update_set(workout_id: int, set_id: int, set_update: schemas.SetUpdate):
     return s
 
 
+@app.patch("/api/workouts/{workout_id}/reassign-exercise", status_code=200)
+async def reassign_exercise(workout_id: int, request: Request):
+    body = await request.json()
+    old_id = body.get("old_exercise_id")
+    new_id = body.get("new_exercise_id")
+    if not old_id or not new_id:
+        return Response(status_code=422)
+    with Session(engine) as session:
+        w = session.get(Workout, workout_id)
+        if not w:
+            return Response(status_code=404)
+        sets_to_update = session.exec(
+            select(SetEntry).where(SetEntry.workout_id == workout_id, SetEntry.exercise_id == old_id)
+        ).all()
+        for s in sets_to_update:
+            s.exercise_id = new_id
+            session.add(s)
+        session.commit()
+        updated = session.exec(
+            select(SetEntry).where(SetEntry.workout_id == workout_id, SetEntry.exercise_id == new_id).order_by(SetEntry.id)
+        ).all()
+        result = [{"id": s.id, "workout_id": s.workout_id, "exercise_id": s.exercise_id, "reps": s.reps, "weight": s.weight, "order": s.order} for s in updated]
+    return {"sets": result}
+
+
 @app.get("/api/workouts/{workout_id}", response_model=schemas.WorkoutDetail)
 def get_workout_detail(workout_id: int):
     with Session(engine) as session:

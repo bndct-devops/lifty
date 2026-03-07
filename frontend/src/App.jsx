@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useTransition, useRef } from 'react'
-import { listExercises, createExercise, updateExercise, deleteExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory, authStatus, authLogin, authChangePassword } from './api'
+import { listExercises, createExercise, updateExercise, deleteExercise, listWorkouts, createWorkout, updateWorkout, startWorkout, finishWorkout, deleteWorkout, deleteAllWorkouts, addSet, updateSet, deleteSet, reassignExercise, getWorkoutDetail, getExerciseLastSets, getPRs, getDailyVolume, getWeeklyVolume, getMuscleGroups, listProfiles, createProfile, updateProfile, importStrong, markRestDay, setPin, verifyPin, logBodyweight, getBodyweight, deleteBodyweightEntry, getExerciseHistory, authStatus, authLogin, authChangePassword } from './api'
 import { Dumbbell, Lock, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, Timer, CheckCircle2, Flame, TrendingUp } from 'lucide-react'
 import { fmtWeight, parseWeight, playDing, IconDownload, IconUpload, IconCheck, IconX, IconXCircle, MiniMarkdown } from './utils'
 import BottomSheet from './BottomSheet'
@@ -316,6 +316,16 @@ export default function App() {
     setSessionSets(prev => prev.filter(s => s.id !== setId))
   }
 
+  async function handleReassign(workoutId, oldExerciseId, newExerciseId) {
+    const result = await reassignExercise(workoutId, oldExerciseId, newExerciseId)
+    if (result?.sets) {
+      setSessionSets(prev => [
+        ...prev.filter(s => s.exercise_id !== oldExerciseId),
+        ...result.sets,
+      ])
+    }
+  }
+
   async function handleOpenDetail(w) {
     const d = await getWorkoutDetail(w.id)
     setDetailSheet({ workout: w, detail: d })
@@ -513,6 +523,7 @@ export default function App() {
         onExit={() => { setSessionWorkout(null); setSessionSets([]) }}
         onAddSet={handleAddSet}
         onDeleteSet={handleDeleteSet}
+        onReassign={handleReassign}
         onRename={async (id, name) => {
           const updated = await updateWorkout(id, { name })
           if (updated?.id) {
