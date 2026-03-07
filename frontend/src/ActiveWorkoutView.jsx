@@ -1,10 +1,11 @@
 import React from "react"
-import { Check, CheckCircle2, Dumbbell, Flag, Lock, Repeat2, Timer, TrendingUp, Trophy } from "lucide-react"
+import { Check, CheckCircle2, Dumbbell, Flag, Lock, Plus, Repeat2, Timer, TrendingUp, Trophy } from "lucide-react"
 import { fmtWeight, parseWeight, playDing, IconX, MiniMarkdown } from "./utils"
 import { getExerciseLastSets, getExerciseHistory, subscribePush, schedulePush, cancelPush, reassignExercise } from "./api"
 
-export default function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onReassign, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true, prs = [], liquidGlass = false, animationsEnabled = true }) {
+export default function ActiveWorkoutView({ workout, exercises, sessionSets, onFinish, onCancel, onExit, onAddSet, onDeleteSet, onReassign, onCreateExercise, onRename, onSaveNotes, unit = 'kg', restDuration: propRestDuration = 90, dingEnabled = true, onRestDurationChange, overloadHints = true, plateCalc = true, prs = [], liquidGlass = false, animationsEnabled = true }) {
   const BODY_PARTS = ['Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core', 'Cardio', 'Full Body', 'Other']
+  const EQUIPMENT = ['Bodyweight', 'Barbell', 'Dumbbell', 'Machine', 'Cable', 'Kettlebell', 'Trap Bar', 'EZ Bar', 'TRX', 'Other']
 
   const [, setTick] = React.useState(0)
   React.useEffect(() => {
@@ -53,6 +54,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
   const [showExPicker, setShowExPicker] = React.useState(false)
   const [swapExId, setSwapExId] = React.useState(null) // non-null = swap mode: exercise id being replaced
   const [exSearch, setExSearch] = React.useState('')
+  const [quickCreate, setQuickCreate] = React.useState(null) // null | { bodyPart: string, equipment: string }
   const [reps, setReps] = React.useState('')
   const [weight, setWeight] = React.useState('')
   const [lastSetsByExId, setLastSetsByExId] = React.useState({})
@@ -273,8 +275,15 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     if (showExPicker) {
       const t = setTimeout(() => exSearchInputRef.current?.focus(), 80)
       return () => clearTimeout(t)
+    } else {
+      setQuickCreate(null)
     }
   }, [showExPicker])
+
+  // Reset quick-create form when search text is cleared
+  React.useEffect(() => {
+    if (!exSearch.trim()) setQuickCreate(null)
+  }, [exSearch])
 
   async function handleLogSet() {
     if (!selectedExId || (!reps && !weight)) return
@@ -756,7 +765,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
       {/* Exercise picker bottom sheet */}
       {showExPicker && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
-          onClick={() => { setShowExPicker(false); setExSearch(''); setSwapExId(null) }}>
+          onClick={() => { setShowExPicker(false); setExSearch(''); setSwapExId(null); setQuickCreate(null) }}>
           <div className="glass-overlay" style={{ position: 'absolute', inset: 0 }} />
           <div className="glass-panel" style={{ position: 'relative', borderRadius: '20px 20px 0 0', maxHeight: '85dvh', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}>
@@ -765,11 +774,51 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 18px 6px' }}>
               <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>{swapExId !== null ? 'Swap Exercise' : 'Add Exercise'}</span>
-              <button onClick={() => { setShowExPicker(false); setExSearch(''); setSwapExId(null) }}
+              <button onClick={() => { setShowExPicker(false); setExSearch(''); setSwapExId(null); setQuickCreate(null) }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 4, display: 'flex', alignItems: 'center' }}><IconX size={18} /></button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 8px' }}>
-              {groupKeys.length === 0 && <div className="muted small" style={{ padding: '16px 0' }}>No exercises found</div>}
+              {/* Quick-create row — shown when search has text and no exact name match */}
+              {(() => {
+                const trimmed = exSearch.trim()
+                if (!trimmed || exercises.some(e => e.name.toLowerCase() === trimmed.toLowerCase())) return null
+                if (quickCreate) return (
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: 10, padding: '12px 14px', marginBottom: 10, marginTop: 4 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 10 }}>Create "{trimmed}"</div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      <select value={quickCreate.bodyPart} onChange={e => setQuickCreate(q => ({ ...q, bodyPart: e.target.value }))} style={{ flex: 1, fontSize: '0.88rem' }}>
+                        <option value="">Body part…</option>
+                        {BODY_PARTS.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <select value={quickCreate.equipment} onChange={e => setQuickCreate(q => ({ ...q, equipment: e.target.value }))} style={{ flex: 1, fontSize: '0.88rem' }}>
+                        <option value="">Equipment…</option>
+                        {EQUIPMENT.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" style={{ flex: 1, fontSize: '0.88rem', padding: '8px 0' }} onClick={() => setQuickCreate(null)}>Cancel</button>
+                      <button type="button" className="primary" style={{ flex: 2, fontSize: '0.88rem', padding: '8px 0' }}
+                        onClick={async () => {
+                          const newEx = await onCreateExercise?.(trimmed, quickCreate.bodyPart || null, quickCreate.equipment || null)
+                          if (newEx?.id) {
+                            if (swapExId !== null) { await onReassign?.(workout.id, swapExId, newEx.id); setSwapExId(null) }
+                            else activateExercise(newEx.id)
+                          }
+                          setQuickCreate(null); setShowExPicker(false); setExSearch('')
+                        }}>Create &amp; Add</button>
+                    </div>
+                  </div>
+                )
+                return (
+                  <button type="button"
+                    onClick={() => setQuickCreate({ bodyPart: '', equipment: '' })}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px dashed var(--border)', background: 'transparent', cursor: 'pointer', marginBottom: 8, marginTop: 4, fontSize: '0.9rem', color: 'var(--accent)', fontFamily: 'inherit', fontWeight: 600 }}>
+                    <Plus size={15} /> Create "{trimmed}"
+                  </button>
+                )
+              })()}
+              {groupKeys.length === 0 && !exSearch.trim() && <div className="muted small" style={{ padding: '16px 0' }}>No exercises found</div>}
+              {groupKeys.length === 0 && exSearch.trim() && !quickCreate && <div className="muted small" style={{ padding: '4px 0 16px' }}>No matches — create it above</div>}
               {groupKeys.map(group => (
                 <div key={group}>
                   <div style={{ padding: '10px 0 4px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{group}</div>

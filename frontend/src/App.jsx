@@ -531,6 +531,11 @@ export default function App() {
         onAddSet={handleAddSet}
         onDeleteSet={handleDeleteSet}
         onReassign={handleReassign}
+        onCreateExercise={async (name, bodyPart, equipment) => {
+          const newEx = await createExercise({ name, body_part: bodyPart, equipment, profile_id: activeProfile?.id })
+          await fetchList()
+          return newEx
+        }}
         onRename={async (id, name) => {
           const updated = await updateWorkout(id, { name })
           if (updated?.id) {
