@@ -288,6 +288,12 @@ export async function getPushVapidKey() {
   return data.publicKey
 }
 
+function bytesToBase64Url(bytes) {
+  let binary = ''
+  bytes.forEach(b => { binary += String.fromCharCode(b) })
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
 export async function subscribePush(profileId) {
   if (!('PushManager' in window) || !navigator.serviceWorker) return false
   try {
@@ -304,14 +310,18 @@ export async function subscribePush(profileId) {
       applicationServerKey: rawKey,
     })
     const json = sub.toJSON()
+    const p256dhKey = sub.getKey?.('p256dh')
+    const authKey = sub.getKey?.('auth')
+    const p256dh = p256dhKey ? bytesToBase64Url(new Uint8Array(p256dhKey)) : json.keys?.p256dh
+    const auth = authKey ? bytesToBase64Url(new Uint8Array(authKey)) : json.keys?.auth
     const res = await authFetch(base + '/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         profileId,
         endpoint: json.endpoint,
-        p256dh: json.keys.p256dh,
-        auth: json.keys.auth,
+        p256dh,
+        auth,
       }),
     })
     if (!res.ok) {
