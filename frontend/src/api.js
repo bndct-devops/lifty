@@ -280,6 +280,10 @@ export async function getExerciseHistory(exerciseId, profileId, limit = 30) {
 
 export async function getPushVapidKey() {
   const res = await authFetch(base + '/api/push/vapid-public-key')
+  if (!res.ok) {
+    console.warn('[push] failed to fetch VAPID public key', res.status)
+    return null
+  }
   const data = await res.json()
   return data.publicKey
 }
@@ -294,12 +298,13 @@ export async function subscribePush(profileId) {
     const padding = '='.repeat((4 - publicKey.length % 4) % 4)
     const base64 = (publicKey + padding).replace(/-/g, '+').replace(/_/g, '/')
     const rawKey = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
-    const sub = await reg.pushManager.subscribe({
+    const existing = await reg.pushManager.getSubscription()
+    const sub = existing || await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: rawKey,
     })
     const json = sub.toJSON()
-    await authFetch(base + '/api/push/subscribe', {
+    const res = await authFetch(base + '/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -309,6 +314,10 @@ export async function subscribePush(profileId) {
         auth: json.keys.auth,
       }),
     })
+    if (!res.ok) {
+      console.warn('[push] failed to store subscription', res.status)
+      return false
+    }
     return true
   } catch (e) {
     console.warn('[push] subscribe failed', e)
@@ -318,20 +327,26 @@ export async function subscribePush(profileId) {
 
 export async function schedulePush(profileId, delayMs, title, body) {
   try {
-    await authFetch(base + '/api/push/schedule', {
+    const res = await authFetch(base + '/api/push/schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profileId, delayMs, title, body }),
     })
-  } catch (_) {}
+    if (!res.ok) console.warn('[push] schedule failed', res.status)
+  } catch (e) {
+    console.warn('[push] schedule failed', e)
+  }
 }
 
 export async function cancelPush(profileId) {
   try {
-    await authFetch(base + '/api/push/cancel', {
+    const res = await authFetch(base + '/api/push/cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profileId }),
     })
-  } catch (_) {}
+    if (!res.ok) console.warn('[push] cancel failed', res.status)
+  } catch (e) {
+    console.warn('[push] cancel failed', e)
+  }
 }

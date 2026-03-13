@@ -346,10 +346,39 @@ def test_auth_allows_access_with_valid_token(auth_client):
 
 
 def test_auth_unprotected_paths_always_accessible(auth_client):
-    """/health and /api/auth/status are always accessible without a token."""
+    """/health, auth status, and the VAPID public key stay public."""
     client, _ = auth_client
     assert client.get("/health").status_code == 200
     assert client.get("/api/auth/status").status_code == 200
+    vapid_res = client.get("/api/push/vapid-public-key")
+    assert vapid_res.status_code == 200
+    assert isinstance(vapid_res.json()["publicKey"], str)
+    assert len(vapid_res.json()["publicKey"]) > 20
+
+
+def test_push_mutation_endpoints_require_auth(auth_client):
+    """Push subscribe/schedule/cancel stay protected when instance auth is enabled."""
+    client, _ = auth_client
+
+    subscribe_res = client.post(
+        "/api/push/subscribe",
+        json={
+            "profileId": 1,
+            "endpoint": "https://push.example.test/subscription",
+            "p256dh": "test-p256dh",
+            "auth": "test-auth",
+        },
+    )
+    assert subscribe_res.status_code == 401
+
+    schedule_res = client.post(
+        "/api/push/schedule",
+        json={"profileId": 1, "delayMs": 1000, "title": "Rest done", "body": "Time to lift"},
+    )
+    assert schedule_res.status_code == 401
+
+    cancel_res = client.post("/api/push/cancel", json={"profileId": 1})
+    assert cancel_res.status_code == 401
 
 
 def test_auth_change_password(auth_client):

@@ -75,12 +75,27 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     typeof Notification !== 'undefined' ? Notification.permission : 'unavailable'
   )
 
-  // Subscribe to web push if permission already granted (handles app updates)
+  const ensurePushSubscription = React.useCallback(async (requestPermission = false) => {
+    if (typeof Notification === 'undefined') return false
+    let permission = Notification.permission
+    if (permission === 'default' && requestPermission) {
+      try {
+        permission = await Notification.requestPermission()
+      } catch {
+        permission = 'default'
+      }
+    }
+    setNotifPerm(permission)
+    if (permission !== 'granted') return false
+    return subscribePush(workout?.profile_id)
+  }, [workout?.profile_id])
+
+  // Subscribe to web push if permission is already granted (handles app updates)
   React.useEffect(() => {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      subscribePush(workout?.profile_id).catch(() => {})
+      ensurePushSubscription(false).catch(() => {})
     }
-  }, [workout?.profile_id])
+  }, [ensurePushSubscription])
 
   async function openHistory(exId, exName) {
     setHistorySheet({ exId, name: exName, data: null })
@@ -110,19 +125,16 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
     }
   }
 
-  function startRestTimer(dur) {
+  async function startRestTimer(dur) {
     navigator.vibrate?.(20)
     restEndRef.current = Date.now() + dur * 1000
     setRestLeft(dur)
     setRestRunning(true)
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      Notification.requestPermission().then(p => {
-        setNotifPerm(p)
-        if (p === 'granted') subscribePush(workout?.profile_id).catch(() => {})
-      }).catch(() => {})
-    }
     scheduleSwNotif(dur * 1000)
-    schedulePush(workout?.profile_id, dur * 1000, 'lifty', 'Rest done — time to lift!')
+    const pushReady = await ensurePushSubscription(true)
+    if (pushReady) {
+      schedulePush(workout?.profile_id, dur * 1000, 'lifty', 'Rest done — time to lift!')
+    }
   }
   function stopRestTimer() {
     setRestLeft(null)
@@ -406,7 +418,7 @@ export default function ActiveWorkoutView({ workout, exercises, sessionSets, onF
           </div>
           {/* Notification permission status */}
           {notifPerm === 'default' && (
-            <div onClick={() => Notification.requestPermission().then(p => setNotifPerm(p)).catch(() => {})}
+            <div onClick={() => ensurePushSubscription(true).catch(() => {})}
               style={{ marginTop: 10, fontSize: '0.72rem', opacity: 0.85, cursor: 'pointer', textDecoration: 'underline' }}>
               Tap to enable alarm notification
             </div>
