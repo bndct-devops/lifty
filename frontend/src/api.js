@@ -312,14 +312,24 @@ export async function subscribePush(profileId) {
     const json = sub.toJSON()
     const p256dhKey = sub.getKey?.('p256dh')
     const authKey = sub.getKey?.('auth')
+    const endpoint = sub.endpoint || json.endpoint
     const p256dh = p256dhKey ? bytesToBase64Url(new Uint8Array(p256dhKey)) : json.keys?.p256dh
     const auth = authKey ? bytesToBase64Url(new Uint8Array(authKey)) : json.keys?.auth
+    if (!profileId || !endpoint || !p256dh || !auth) {
+      console.warn('[push] subscription payload missing fields', {
+        hasProfileId: Boolean(profileId),
+        hasEndpoint: Boolean(endpoint),
+        hasP256dh: Boolean(p256dh),
+        hasAuth: Boolean(auth),
+      })
+      return false
+    }
     const res = await authFetch(base + '/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         profileId,
-        endpoint: json.endpoint,
+        endpoint,
         p256dh,
         auth,
       }),

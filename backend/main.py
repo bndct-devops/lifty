@@ -217,8 +217,17 @@ async def push_subscribe(request: Request):
     endpoint = body.get("endpoint")
     p256dh = body.get("p256dh")
     auth = body.get("auth")
-    if not all([profile_id, endpoint, p256dh, auth]):
-        return JSONResponse({"detail": "Missing fields"}, status_code=422)
+    missing = [
+        name for name, value in {
+            "profileId": profile_id,
+            "endpoint": endpoint,
+            "p256dh": p256dh,
+            "auth": auth,
+        }.items()
+        if not value
+    ]
+    if missing:
+        return JSONResponse({"detail": "Missing fields", "missing": missing}, status_code=422)
     with Session(engine) as session:
         existing = session.exec(
             select(PushSubscription).where(PushSubscription.profile_id == profile_id)
@@ -1254,4 +1263,3 @@ def _workout_out(w: Workout, sets: list) -> schemas.WorkoutOut:
 
 if __name__ == '__main__':
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
